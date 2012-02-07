@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+    <files dir="engine" >
+        <file>hosts.php</file>
+    </files>
+    
+    <files>
+            <echo>
+                <![CDATA[<%  $buildtime=date('ymdHi'); point_start('hat');echo
+'----------------------------------------------------------------------------
+$Id: '.$version.'
+ Rev: '.$svn_revision.', Modified: '.$svn_modified.'
+ SVN: '.$svn_url.'$
+----------------------------------------------------------------------------
+'.$license.'
+----------------------------------------------------------------------------'; point_finish() ;%>]]>
+            </echo>
+
+    </files>
+
+    <!-- ************************************** -->
+    <!-- **** параметры проекта            **** -->
+    <!-- ************************************** -->
+	<var name="target_charset">UTF-8</var>
+
+	<!-- ************************************** -->
+	<!-- **** внедряем jinja шаблоны       **** -->
+	<!-- ************************************** -->
+	<files dir="plugins" >
+		<file>jinja_template.php</file>
+	</files>
+    <files >
+        <file>plugins/jquery.Ui.php</file>
+    </files>
+
+    <!-- ************************************** -->
+   	<!-- **** HackerConsole			       **** -->
+   	<!-- ************************************** -->
+    <files  dstdir="$dst">
+       <copy>Debug/HackerConsole/*.*</copy>
+    </files>
+
+    <!-- ************************************** -->
+   	<!-- **** ContextMenu			       **** -->
+   	<!-- ************************************** -->
+    <files  dstdir="$dst">
+       <file>plugins/contextMenu.php</file>
+    </files>
+
+	<!-- ************************************** -->
+	<!-- **** мелкий порт cms в darts      **** -->
+	<!-- ************************************** -->
+	<files dstdir="$dst/engine" dir="admin/engine/">
+		<file>rights.php</file>
+		<file>engine.php</file>
+		<file>syspar.php</file>
+		<file>func.php</file>
+		<file>html.class.php</file>
+        <file>Generic.php</file>
+        <file>templater.php</file>
+        <file>Mysql.php</file>
+        <file dir="admin/engine/plugins">news.php</file>
+	</files>
+
+	<!-- ************************************** -->
+	<!-- **** все копируем на базу         **** -->
+	<!-- ************************************** -->
+    <files dir="../Backup-script" dstdir="$dst">
+        <file>backup.php</file>
+    </files>
+	<files dstdir="$dst">
+		<file>engine/*.*</file>
+		<file>*.php</file>
+		<file depend="common/*.css;plugins/*.*">css/*.*</file>
+		<file>templates/*.*</file>
+		<file depend="common/*.js;common/site.src/*.*">js/*.*</file>
+		<copy>img/*.*</copy>
+	</files>
+</config>

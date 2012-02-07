@@ -7,6 +7,8 @@
  * ----------------------------------------------------------------------------
  */
 
+/* <%=point('execute')*/
+
 /**
  * Exception для определенности - будет тикать в случае ошибки
  */
@@ -169,7 +171,7 @@ class BACKUP {
         }
         while($notlast);
         if(isset($this->opt['progress'])){
-            call_user_func($this->opt['progress'],$table,$total,$total);
+            call_user_func($this->opt['progress'],'restore',$total,$total);
         }
         $this->close($handle);
         $this->progress('restore',$total,$total);
