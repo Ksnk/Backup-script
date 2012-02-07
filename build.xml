@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- phing bild file -->
-<project name="darts" default="build debug">
+<project name="darts" default="build.allinone">
     <taskdef name="minify" classname="phing.tasks.ext.kpMinTask" />
     <taskdef name="preprocess" classname="phing.tasks.ext.preprocessor.preprocessTask" />
 
@@ -30,56 +30,33 @@ lasttarget=${target}
         </exec>
     </target>
 
-    <target name="build.localhost" depends="property" description="build project">
+    <target name="build.allinone" depends="property" description="build allinone part">
         <property file="svn.prop" />
-        <echo message="dst=${dst} target=${target}"/>
-        <if>
-            <equals arg1="${lasttarget}" arg2="${target}" />
-        <then>
-            <property name="force" value='${svn_modified}' />
-        </then>
-        <else>
-            <property name="force" value='force' />
-        </else>
-        </if>
-        <preprocess  config="config.xml" force='${force}'>
-            <param name="dst" value="${dst}"/>
-            <param name="target" value="${target}"/>
+
+        <preprocess  config="config.xml" force='force'>
+            <param name="dst" value="build/allinone"/>
             <param file="svn.prop"/>
         </preprocess>
     </target>
 
-    <target name="build release">
-        <property name="dst" value="${sitedst}" />
-        <property name="target" value="release" />
-        <svncommit message="build ${target}" />
-        <phingcall target="build.localhost"/>
-        <phingcall target="minify-js"/>
-        <phingcall target="minify-css"/>
+    <target name="build.plugin" depends="property" description="build plugin part">
+        <property file="svn.prop" />
+
+        <preprocess  config="config.xml" force='force'>
+            <param name="dst" value="build/cms-plugin"/>
+            <param name="executor" value="empty_executor"/>
+            <param file="svn.prop"/>
+        </preprocess>
     </target>
 
-    <target name="build debug">
-        <property name="dst" value="${sitedst}"/>
-        <property name="target" value="debug" />
-        <phingcall target="build.localhost"/>
-    </target>
+    <target name="build.debug.allinone" depends="property" description="build allinone part to check at server">
+        <property file="svn.prop" />
 
-    <target name="minify-js">
-        <minify suffix='.min' yuiPath="${YUicompressor}">
-            <fileset dir="${dst}/js">
-              <include name="site.js"/>
-              <exclude name="*.min.js"/>
-            </fileset>
-        </minify>
-    </target>
-
-    <target name="minify-css">
-        <minify suffix='.min' yuiPath="${YUicompressor}">
-            <fileset dir="${dst}/css">
-              <include name="*.css"/>
-              <exclude name="*.min.css"/>
-            </fileset>
-        </minify>
+        <preprocess  config="config.xml" force='force'>
+            <param name="dst" value="${sitedst}"/>
+            <param name="target" value="allinone"/>
+            <param file="svn.prop"/>
+        </preprocess>
     </target>
 
 </project>

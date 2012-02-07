@@ -1,4 +1,6 @@
 <?php
+/*<% point_start('execute'); %>/**/
+
 /**
  * @description URI executor for BACKUP-script project
  * This is a first part of ALL-IN-ONE-FILE build of this project
@@ -6,9 +8,8 @@
  * for all possible get parameters look at main file options
  */
 
-/* <% point_start('execute'); %> */
 /**
- * function to show a progress with plaint html style
+ * function to show a progress with plain html style
  * @param $name
  * @param $cur
  * @param $total

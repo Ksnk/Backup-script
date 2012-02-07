@@ -7,7 +7,7 @@
  * ----------------------------------------------------------------------------
  */
 
-/* <%=point('execute')*/
+/*<%=point('execute');%>*/
 
 /**
  * Exception для определенности - будет тикать в случае ошибки
@@ -305,37 +305,5 @@ class BACKUP {
         return true;
     }
 }
-
-/**
- * При использовании в админке - убрать все отсюда >>>>>
- */
-if(basename($_SERVER['SCRIPT_FILENAME'])==basename(__FILE__)){
-   // считаем, что это тот случай, когда скрипт вызвали из адресной строки броузера для
-   // использования в качестве web-утилиты
-   // backup.php?restore=tmp.sql&code=cp1251
-   // backup.php?include=darts_*,SESSION&exclude=*_tmp&code=utf8
-   function progress($name,$cur,$total){
-       static $xname='';
-       if($xname!=$name){
-           echo "\n";
-           $xname=$name;
-       }
-       if($total==0)$total=1;
-       echo '.'.$name.'['.(100*$cur/$total).'%] ';
-   }
-
-   try{
-       $backup=new BACKUP($_GET);
-       $backup->options('progress','progress');
-       if(!empty($_GET['restore'])) {
-           echo $backup->restore()?'ok':'Fail';
-       } else {
-           echo $backup->make_backup()?'ok':'Fail';
-       }
-   } catch (BackupException $e) {
-       var_dump($e->getMessage());
-   }
-}
-/** досюда <<<<< */
 
 
