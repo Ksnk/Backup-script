@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- phing bild file -->
-<project name="darts" default="build.allinone">
+<project name="darts" default="build.all">
     <taskdef name="minify" classname="phing.tasks.ext.kpMinTask" />
     <taskdef name="preprocess" classname="phing.tasks.ext.preprocessor.preprocessTask" />
 
@@ -58,5 +58,7 @@ lasttarget=${target}
             <param file="svn.prop"/>
         </preprocess>
     </target>
+
+    <target name="build.all" depends="property,build.allinone,build.plugin" description="build all"/>
 
 </project>

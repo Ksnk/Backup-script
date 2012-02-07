@@ -14,14 +14,14 @@
  * @param $cur
  * @param $total
  */
-function progress($name,$cur,$total){
+function progress(&$val){
     static $xname='';
-    if($xname!=$name){
+    if($xname!=$val['name']){
         echo "\n";
         $xname=$name;
     }
-    if($total==0)$total=1;
-    echo '.'.$name.'['.(100*$cur/$total).'%] ';
+    if($val['total']==0)$val['total']=1;
+    echo '.'.$val['name'].'['.(100*$val['val']/$val['total']).'%] ';
 }
 
 /**

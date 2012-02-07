@@ -56,12 +56,16 @@ class BACKUP {
     /** @var string - sql|sql.gz - метод работы с файлами */
     private $method = 'file';
 
-    private function progress($name,$val,$total){
-        static $starttime;
+    private function progress($name,$call=false){
+        static $starttime,$param=array();
         if(!isset($this->opt['progress'])) return;
+        if(is_array($name))
+            $param=array_merge($param,$name);
+        else
+            $param['val']=$name;
 
-        if ($val==0 || $val==$total  ||(microtime(true)-$starttime)>$this->opt['progressdelay']){
-            call_user_func($this->opt['progress'],$name,$val,$total);
+        if ($call ||(microtime(true)-$starttime)>$this->opt['progressdelay']){
+            call_user_func(&$param);
             $starttime=microtime(true);
         }
     }
@@ -141,7 +145,7 @@ class BACKUP {
         $total = ftell($handle);
         $curptr=0;
         fseek($handle, 0, SEEK_SET);
-        $this->progress('restore',0,$total);
+        $this->progress(array('name'=>'restore','val'=>0,'total'=>$total),true);
         do{
             $string=fread($handle,self::$MAXBUF);
             $xx=explode(";\n",str_replace("\r","",$buf.$string));
@@ -151,8 +155,7 @@ class BACKUP {
             } else {
                 $buf=array_pop($xx);
             }
-            $curptr+=strlen($string);
-            $this->progress('restore',$curptr,$total);
+            $this->progress($curptr+=strlen($string));
 
             foreach($xx as $s){
                 // устраняем строковые комментарии
@@ -170,11 +173,8 @@ class BACKUP {
 
         }
         while($notlast);
-        if(isset($this->opt['progress'])){
-            call_user_func($this->opt['progress'],'restore',$total,$total);
-        }
         $this->close($handle);
-        $this->progress('restore',$total,$total);
+        $this->progress($total,true);
         return true;
     }
 
@@ -246,12 +246,12 @@ class BACKUP {
 
                 $result = mysql_unbuffered_query('SELECT * FROM `' . $table.'`',$this->link);
                 $rowcnt=0;
-                $this->progress($table,0,$total[$table]);
+                $this->progress(array('name'=>$table,'val'=>0,'total'=>$total[$table]),true);
 
                 while ($row = mysql_fetch_row($result))
                 {
                     $rowcnt++;
-                    $this->progress($table,$rowcnt,$total[$table]);
+                    $this->progress($rowcnt);
 
                     for ($j = 0; $j < $num_fields; $j++)
                     {
@@ -272,7 +272,7 @@ class BACKUP {
                     $retrow[]=$str;
                 }
                 unset($row);
-                $this->progress($table,$total[$table],$total[$table]);
+                $this->progress($total[$table],true);
 
                 if(count($retrow)>0){
                     fwrite($handle,"INSERT INTO `" . $table . "` VALUES\n  ".implode(",\n  ",$retrow).";\n\n");
