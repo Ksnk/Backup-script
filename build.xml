@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- phing bild file -->
-<project name="darts" default="build.allinone">
+<project name="darts" default="build.all">
     <taskdef name="minify" classname="phing.tasks.ext.kpMinTask" />
     <taskdef name="preprocess" classname="phing.tasks.ext.preprocessor.preprocessTask" />
 
@@ -20,7 +20,6 @@ env_common=${common}
 svn_revision=$WCREV$
 svn_modified=$WCDATE$
 svn_url=$WCURL$
-lasttarget=${target}
 ]]>        </echo>
         <exec executable="SubWCRev" dir=".">
             <arg file="." />
@@ -59,4 +58,13 @@ lasttarget=${target}
         </preprocess>
     </target>
 
+    <target name="build.all" depends="property,build.allinone,build.plugin" description="build all"/>
+
+    <target name='test'>
+    <exec
+            command="git describe --tags"
+            checkreturn="true"
+            logoutput="true"
+    />
+    </target>
 </project>

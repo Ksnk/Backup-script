@@ -36,10 +36,11 @@ class BACKUP {
         'exclude'=>'',  // маска в DOS стиле со * и ? . backup-only
         'dir'=>'./',    // путь со слешем до каталога хранения бякапов . backup-only
         'compress'=>9, // уровень компрессии для gz  . backup-only
+        'method'=>'sql.gz', // 'sql.gz'|'sql' - использовать пя или нет
 //  both-way параметры
         'code'=>'utf8', // set NAMES 'code'
         'progress'=>'', // функция для calback'а progress bara
-        'progressdelay'=>0.5, // время между тиками callback прогресс бара [0.5== полсекунды]
+        'progressdelay'=>3, // время между тиками callback прогресс бара [0.5== полсекунды]
 //  restore-only параметры
         'restore'=>'',  // имя файла SQL-дампа для чтения
     );
@@ -56,12 +57,16 @@ class BACKUP {
     /** @var string - sql|sql.gz - метод работы с файлами */
     private $method = 'file';
 
-    private function progress($name,$val,$total){
-        static $starttime;
+    private function progress($name,$call=false){
+        static $starttime,$param=array();
         if(!isset($this->opt['progress'])) return;
+        if(is_array($name))
+            $param=array_merge($param,$name);
+        else
+            $param['val']=$name;
 
-        if ($val==0 || $val==$total  ||(microtime(true)-$starttime)>$this->opt['progressdelay']){
-            call_user_func($this->opt['progress'],$name,$val,$total);
+        if (!isset($starttime) || $call ||(microtime(true)-$starttime)>$this->opt['progressdelay']){
+            call_user_func($this->opt['progress'],&$param);
             $starttime=microtime(true);
         }
     }
@@ -107,7 +112,7 @@ class BACKUP {
             if(preg_match('/\.(sql|sql\.gz)$/i', $name, $m))
                 $this->method = strtolower($m[1]);
         } else {
-            $this->method='sql.gz';// todo: проверить оно есть или ненадо!
+            $this->method=$this->opt['method'];
             $name.='.gz';
         }
         if($this->method=='sql.gz')
@@ -141,7 +146,7 @@ class BACKUP {
         $total = ftell($handle);
         $curptr=0;
         fseek($handle, 0, SEEK_SET);
-        $this->progress('restore',0,$total);
+        $this->progress(array('name'=>'restore','val'=>0,'total'=>$total));
         do{
             $string=fread($handle,self::$MAXBUF);
             $xx=explode(";\n",str_replace("\r","",$buf.$string));
@@ -151,8 +156,7 @@ class BACKUP {
             } else {
                 $buf=array_pop($xx);
             }
-            $curptr+=strlen($string);
-            $this->progress('restore',$curptr,$total);
+            $this->progress($curptr+=strlen($string));
 
             foreach($xx as $s){
                 // устраняем строковые комментарии
@@ -170,11 +174,8 @@ class BACKUP {
 
         }
         while($notlast);
-        if(isset($this->opt['progress'])){
-            call_user_func($this->opt['progress'],'restore',$total,$total);
-        }
         $this->close($handle);
-        $this->progress('restore',$total,$total);
+        $this->progress($total,true);
         return true;
     }
 
@@ -246,12 +247,12 @@ class BACKUP {
 
                 $result = mysql_unbuffered_query('SELECT * FROM `' . $table.'`',$this->link);
                 $rowcnt=0;
-                $this->progress($table,0,$total[$table]);
+                $this->progress(array('name'=>$table,'val'=>0,'total'=>$total[$table]));
 
                 while ($row = mysql_fetch_row($result))
                 {
                     $rowcnt++;
-                    $this->progress($table,$rowcnt,$total[$table]);
+                    $this->progress($rowcnt);
 
                     for ($j = 0; $j < $num_fields; $j++)
                     {
@@ -272,7 +273,7 @@ class BACKUP {
                     $retrow[]=$str;
                 }
                 unset($row);
-                $this->progress($table,$total[$table],$total[$table]);
+                $this->progress($total[$table],true);
 
                 if(count($retrow)>0){
                     fwrite($handle,"INSERT INTO `" . $table . "` VALUES\n  ".implode(",\n  ",$retrow).";\n\n");
