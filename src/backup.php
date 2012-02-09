@@ -36,13 +36,14 @@ class BACKUP {
         'exclude'=>'',  // маска в DOS стиле со * и ? . backup-only
         'dir'=>'./',    // путь со слешем до каталога хранения бякапов . backup-only
         'compress'=>9, // уровень компрессии для gz  . backup-only
-        'method'=>'sql.gz', // 'sql.gz'|'sql' - использовать пя или нет
+        'method'=>'sql.gz', // 'sql.gz'|'sql' - использовать gz или нет
+        'onthefly'=>false , // вывод гзипа прямо в броузер. Ошибки, правда, теряются напрочь...
 //  both-way параметры
         'code'=>'utf8', // set NAMES 'code'
         'progress'=>'', // функция для calback'а progress bara
         'progressdelay'=>3, // время между тиками callback прогресс бара [0.5== полсекунды]
 //  restore-only параметры
-        'restore'=>'',  // имя файла SQL-дампа для чтения
+        'file'=>'',  // имя файла SQL-дампа для чтения
     );
 
     /**
@@ -50,6 +51,9 @@ class BACKUP {
      * Еще и размер буфера для чтения sql файла
      */
     static private $MAXBUF=32768    ;
+
+    /** on-the-fly support*/
+    private $fsize,$fltr,$hctx ;
 
     /** @var bool|\resource */
     private $link = false;
@@ -59,7 +63,7 @@ class BACKUP {
 
     private function progress($name,$call=false){
         static $starttime,$param=array();
-        if(!isset($this->opt['progress'])) return;
+        if(!is_callable($this->opt['progress'])) return;
         if(is_array($name))
             $param=array_merge($param,$name);
         else
@@ -113,18 +117,55 @@ class BACKUP {
                 $this->method = strtolower($m[1]);
         } else {
             $this->method=$this->opt['method'];
-            $name.='.gz';
+            if(!$this->opt['onthefly']) $name.='.gz';
         }
-        if($this->method=='sql.gz')
+        if($this->opt['onthefly'] && $mode=='w'){ // gzzip on-the-fly without file
+            $handle=fopen("php://output", "wb");
+            if ($handle === FALSE)
+                throw new BackupException('It\' impossible to use `gzip-on-the-fly, sorry');
+            header($_SERVER["SERVER_PROTOCOL"] . ' 200 OK');
+            header('Content-Type: application/octet-stream');
+            header('Connection: keep-alive'); // so it's possible to skip filesize header
+            header('Content-Disposition: attachment; filename="' . basename($name.'.gz') . '";');
+            // write gzip header
+            fwrite($handle, "\x1F\x8B\x08\x08".pack("V", time())."\0\xFF", 10);
+            // write the original file name
+            $oname = str_replace("\0", "", $name);//TODO: wtf?
+            fwrite($handle, $oname."\0", 1+strlen($oname));
+            // add the deflate filter using default compression level
+            $this->fltr = stream_filter_append($handle, "zlib.deflate", STREAM_FILTER_WRITE, -1);
+            $this->hctx = hash_init("crc32b");// set up the CRC32 hashing context
+            // turn off the time limit
+            if (!ini_get("safe_mode")) set_time_limit(0);
+            $this->fsize = 0;
+            return $handle;
+        }
+        else if($this->method=='sql.gz')
             return gzopen($name,$mode.($mode == 'w' ? $this->opt['compress'] : ''));
         else
             return fopen($name,"{$mode}b");
+    }
+
+    function write($handle,$str){
+        if(!empty($this->fltr)){
+            hash_update($this->hctx, $str);
+            $this->fsize+=strlen($str);
+        }
+        return fwrite($handle,&$str);
     }
     /**
      * @param resource $handle
      */
     function close($handle){
-         if($this->method=='sql.gz')
+        if(!empty($this->fltr)){
+            stream_filter_remove($this->fltr);$this->fltr=null;
+            $crc = hash_final($this->hctx, TRUE);
+            // need to reverse the hash_final string so it's little endian
+            fwrite($handle, $crc[3].$crc[2].$crc[1].$crc[0], 4);
+            // write the original uncompressed file size
+            fwrite($handle, pack("V", $this->fsize), 4);
+            fclose($handle);
+        } else if($this->method=='sql.gz')
             gzclose($handle);
         else
             fclose($handle);
@@ -136,8 +177,8 @@ class BACKUP {
      */
     public function restore(){
 
-        $handle=$this->open($this->opt['restore']);
-        if(!$handle) throw new BackupException('File not found "'.$this->opt['restore'].'"');
+        $handle=$this->open($this->opt['file']);
+        if(!$handle) throw new BackupException('File not found "'.$this->opt['file'].'"');
         $notlast=true;
         $buf='';
         @ignore_user_abort(1); // ибо нефиг
@@ -223,7 +264,7 @@ class BACKUP {
 
         do{
             $handle = $this->open($this->opt['dir'].'db-backup-' . date('Ymd') . '.sql','w');
-            fwrite($handle, sprintf("--\n"
+            $this->write($handle, sprintf("--\n"
                 .'-- "%s" database with +"%s"-"%s" tables'."\n"
                 .'-- backup created: %s'."\n"
                 ."--\n\n"
@@ -241,9 +282,9 @@ class BACKUP {
                 while($col = mysql_fetch_array($r)) {
                     $notNum[$num_fields++] = preg_match("/^(tinyint|smallint|mediumint|bigint|int|float|double|real|decimal|numeric|year)/", $col['Type']) ? 0 : 1;
                 }
-                fwrite($handle,'DROP TABLE IF EXISTS `' . $table . '`;');
+                $this->write($handle,'DROP TABLE IF EXISTS `' . $table . '`;');
                 $row2 = mysql_fetch_row(mysql_query('SHOW CREATE TABLE ' . $table));
-                fwrite($handle,"\n\n" . $row2[1] . ";\n\n");
+                $this->write($handle,"\n\n" . $row2[1] . ";\n\n");
 
                 $result = mysql_unbuffered_query('SELECT * FROM `' . $table.'`',$this->link);
                 $rowcnt=0;
@@ -266,7 +307,7 @@ class BACKUP {
                     $str_len+=strlen($str);
                     // Смысл - хочется выполнять не очень здоровые SQL запросы, если есть возможность.
                     if($str_len>self::$MAXBUF-60){
-                        fwrite($handle,"INSERT INTO `" . $table . "` VALUES\n  ".implode(",\n  ",$retrow).";\n\n");
+                        $this->write($handle,"INSERT INTO `" . $table . "` VALUES\n  ".implode(",\n  ",$retrow).";\n\n");
                         $retrow=array();
                         $str_len=strlen($str);
                     }
@@ -276,12 +317,12 @@ class BACKUP {
                 $this->progress($total[$table],true);
 
                 if(count($retrow)>0){
-                    fwrite($handle,"INSERT INTO `" . $table . "` VALUES\n  ".implode(",\n  ",$retrow).";\n\n");
+                    $this->write($handle,"INSERT INTO `" . $table . "` VALUES\n  ".implode(",\n  ",$retrow).";\n\n");
                     $retrow=array();
                     $str_len=0;
                 }
                 mysql_free_result($result);
-                fwrite($handle,"\n");
+                $this->write($handle,"\n");
             }
 
             //сохраняем файл

@@ -3,9 +3,9 @@
 /*<% point_start('execute'); %>/**/
 
 /**
- * This is a first part of ALL-IN-ONE-FILE build of this project
+ * This is a first part of ALL-IN-ONE-FILE build of project
  * Main purpose - provide all possible parameters with URI
- * for all possible get parameters look at main file options
+ * for list of all parameters look at main file options
  */
 
 /**
@@ -25,14 +25,15 @@ function progress(&$val){
  */
 try{
     // to show faster progress, :)
-    $_GET['progressdelay']=0.3;
+  // $_GET['progressdelay']=0.3;
 
     $backup=new BACKUP($_GET);
-    $backup->options('progress','progress');
+   // $backup->options('progress','progress');
+  // $backup->options('onthefly',true);
     if(!empty($_GET['restore'])) {
-        echo $backup->restore()?'ok':'Fail';
+        echo $backup->restore()?'':'Fail';
     } else {
-        echo $backup->make_backup()?'ok':'Fail';
+        echo $backup->make_backup()?'':'Fail';
     }
 } catch (BackupException $e) {
     var_dump($e->getMessage());

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- phing bild file -->
 <project name="darts" default="build.allinone">
-    <taskdef name="minify" classname="phing.tasks.ext.kpMinTask" />
     <taskdef name="preprocess" classname="phing.tasks.ext.preprocessor.preprocessTask" />
 
     <!-- Sets the DSTAMP, TSTAMP and TODAY properties -->
@@ -36,6 +35,25 @@ lasttarget=${target}
         <preprocess  config="config.xml" force='force'>
             <param name="dst" value="build/allinone"/>
             <param file="svn.prop"/>
+
+            <param name="executor" default="URI_executor"/>
+
+                <files>
+                    <echo>
+                    <![CDATA[<%  $buildtime=date('ymdHi'); point_start('hat');echo
+            '----------------------------------------------------------------------------
+            $Id: '.$version.'
+             Rev: '.$svn_revision.', Modified: '.$svn_modified.'
+             SVN: '.$svn_url.'$
+            ----------------------------------------------------------------------------
+            '.$license.'
+            ----------------------------------------------------------------------------'; point_finish() ;%>]]>
+                    </echo>
+
+                    <file>src/$executor.php</file>
+
+                	<file dstdir="$dst"  dir="src">backup.php</file>
+            	</files>
         </preprocess>
     </target>
 

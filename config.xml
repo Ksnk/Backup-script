@@ -3,8 +3,8 @@
     <var name="executor" default="URI_executor"/>
 
     <files>
-            <echo>
-                <![CDATA[<%  $buildtime=date('ymdHi'); point_start('hat');echo
+        <echo>
+        <![CDATA[<%  $buildtime=date('ymdHi'); point_start('hat');echo
 '----------------------------------------------------------------------------
 $Id: '.$version.'
  Rev: '.$svn_revision.', Modified: '.$svn_modified.'
@@ -12,15 +12,11 @@ $Id: '.$version.'
 ----------------------------------------------------------------------------
 '.$license.'
 ----------------------------------------------------------------------------'; point_finish() ;%>]]>
-            </echo>
+        </echo>
 
-    		<file>src/$executor.php</file>
-    </files>
-	<!-- ************************************** -->
-	<!-- **** мелкий порт cms в darts      **** -->
-	<!-- ************************************** -->
-	<files dstdir="$dst" dir="src">
-		<file>backup.php</file>
+        <file>src/$executor.php</file>
+
+    	<file dstdir="$dst"  dir="src">backup.php</file>
 	</files>
 
 
