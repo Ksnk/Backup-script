@@ -10,11 +10,6 @@
 /*<%=point('execute');%>*/
 
 /**
- * Exception для определенности - будет тикать в случае ошибки
- */
-class BackupException extends Exception { }
-
-/**
  * собственно класс бякапа
  * - умеет читать писать GZ
  * - умеет читать большие и страшные дампы SypexDumper'а и большие и страшные дампы phpMyAdmin'а
@@ -28,22 +23,22 @@ class BACKUP {
     private $opt=array(
 // настройка на базу
         'host'=>'localhost', // хост
-        'user'=>'root', // имя-парол
+        'user'=>'root', // имя-пароль
         'password'=>'',
         'base'=>'tmp',  // имя базы данных
 //  backup-only параметры
         'include'=>'*', // маска в DOS стиле со * и ? . backup-only
         'exclude'=>'',  // маска в DOS стиле со * и ? . backup-only
-        'dir'=>'./',    // путь со слешем до каталога хранения бякапов . backup-only
         'compress'=>9, // уровень компрессии для gz  . backup-only
-        'method'=>'sql.gz', // 'sql.gz'|'sql' - использовать gz или нет
+        'method'=>'sql.gz', // 'sql.gz'|'sql.bz2'|'sql' - использовать gz или нет
         'onthefly'=>false , // вывод гзипа прямо в броузер. Ошибки, правда, теряются напрочь...
 //  both-way параметры
+        'file'=>'',  // имя файла SQL-дампа для чтения или каталог (с / на конце) для создания базы
         'code'=>'utf8', // set NAMES 'code'
-        'progress'=>'', // функция для calback'а progress bara
-        'progressdelay'=>3, // время между тиками callback прогресс бара [0.5== полсекунды]
+        'progress'=>'', // функция для calback'а progress bar'a
+        'progressdelay'=>1, // время между тиками callback прогресс бара [0.5== полсекунды]
 //  restore-only параметры
-        'file'=>'',  // имя файла SQL-дампа для чтения
+        'sql'=>'', // plain sql to execute with backup class.
     );
 
     /**
@@ -61,6 +56,12 @@ class BACKUP {
     /** @var string - sql|sql.gz - метод работы с файлами */
     private $method = 'file';
 
+    /**
+     *
+     * @param $name
+     * @param bool $call
+     * @return mixed
+     */
     private function progress($name,$call=false){
         static $starttime,$param=array();
         if(!is_callable($this->opt['progress'])) return;
@@ -75,7 +76,12 @@ class BACKUP {
         }
     }
 
-    public function options($options,$val=''){
+    /**
+     * @param string $options
+     * @param string $val
+     * @return array
+     */
+    public function options($options='',$val=''){
         if(is_array($options))
             $this->opt=array_merge($this->opt,array_intersect_key($options,$this->opt));
         else
@@ -85,7 +91,7 @@ class BACKUP {
      * просто конструктор
      * @param array $options - те параметры, которые отличаются от дефолтных
      */
-    public function __construct($options){
+    public function __construct($options=array()){
         /* вот так устанавливаются параметры */
         $this->options(&$options);
         // so let's go
@@ -112,17 +118,34 @@ class BACKUP {
      * @return resource - вертает результат соответствующей операции
      */
     function open($name,$mode='r'){
-        if($mode == 'r') {
-            if(preg_match('/\.(sql|sql\.gz)$/i', $name, $m))
-                $this->method = strtolower($m[1]);
-        } else {
+        if(preg_match('/\.(sql|sql\.bz2|sql\.gz)$/i', $name, $m))
+            $this->method = strtolower($m[1]);
+        if($mode == 'w' && $this->method=='sql') { // forcibly change type to gzip
             $this->method=$this->opt['method'];
-            if(!$this->opt['onthefly']) $name.='.gz';
+            if(!$this->opt['onthefly']){
+                if ($this->method=='sql.gz')
+                    $name.='.gz';
+                else if($this->method=='sql.bz2')
+                    $name.='.bz2';
+            }
         }
-        if($this->opt['onthefly'] && $mode=='w'){ // gzzip on-the-fly without file
-            $handle=fopen("php://output", "wb");
+
+        if($this->opt['sql'] && $mode=='r'){
+            $handle=@fopen("php://temp", "w+b");
             if ($handle === FALSE)
-                throw new BackupException('It\' impossible to use `gzip-on-the-fly, sorry');
+                throw new BackupException('It\' impossible to use `php://temp`, sorry');
+            fwrite($handle,preg_replace(
+                '~;\s*(insert|create|delete|drop)~i',";\n\\1",
+                $this->opt['sql']
+            ));
+            fseek($handle,0);
+            return $handle;
+        }
+        else if($this->opt['onthefly'] && $mode=='w'){ // gzzip on-the-fly without file
+            $this->opt['progress']=''; // switch off progress  :(
+            $handle=@fopen("php://output", "wb");
+            if ($handle === FALSE)
+                throw new BackupException('It\' impossible to use `gzip-on-the-fly`, sorry');
             header($_SERVER["SERVER_PROTOCOL"] . ' 200 OK');
             header('Content-Type: application/octet-stream');
             header('Connection: keep-alive'); // so it's possible to skip filesize header
@@ -142,6 +165,8 @@ class BACKUP {
         }
         else if($this->method=='sql.gz')
             return gzopen($name,$mode.($mode == 'w' ? $this->opt['compress'] : ''));
+        else if($this->method=='sql.bz2')
+            return bzopen($name, $mode);
         else
             return fopen($name,"{$mode}b");
     }
@@ -159,16 +184,11 @@ class BACKUP {
     function close($handle){
         if(!empty($this->fltr)){
             stream_filter_remove($this->fltr);$this->fltr=null;
-            $crc = hash_final($this->hctx, TRUE);
-            // need to reverse the hash_final string so it's little endian
-            fwrite($handle, $crc[3].$crc[2].$crc[1].$crc[0], 4);
-            // write the original uncompressed file size
-            fwrite($handle, pack("V", $this->fsize), 4);
-            fclose($handle);
-        } else if($this->method=='sql.gz')
-            gzclose($handle);
-        else
-            fclose($handle);
+            // write the original crc and uncompressed file size
+            fwrite($handle, pack("VV", hash_final($this->hctx, TRUE),$this->fsize), 8);
+        }
+        // just a magic! No matter a protocol
+        fclose($handle);
     }
 
     /**
@@ -216,7 +236,7 @@ class BACKUP {
         }
         while($notlast);
         $this->close($handle);
-        $this->progress($total,true);
+        $this->progress('Ok',true);
         return true;
     }
 
@@ -263,7 +283,11 @@ class BACKUP {
         mysql_free_result($result);
 
         do{
-            $handle = $this->open($this->opt['dir'].'db-backup-' . date('Ymd') . '.sql','w');
+            if(trim(basename($this->opt['file']))=='') {
+                if (dirname($this->opt['file'])=='') $this->opt['file']='./';
+                $this->opt['file'].='db-backup-' . date('Ymd') . '.sql';
+            }
+            $handle = $this->open($this->opt['file'],'w');
             $this->write($handle, sprintf("--\n"
                 .'-- "%s" database with +"%s"-"%s" tables'."\n"
                 .'-- backup created: %s'."\n"
@@ -314,7 +338,7 @@ class BACKUP {
                     $retrow[]=$str;
                 }
                 unset($row);
-                $this->progress($total[$table],true);
+                $this->progress('Ok',true);
 
                 if(count($retrow)>0){
                     $this->write($handle,"INSERT INTO `" . $table . "` VALUES\n  ".implode(",\n  ",$retrow).";\n\n");
@@ -347,5 +371,3 @@ class BACKUP {
         return true;
     }
 }
-
-

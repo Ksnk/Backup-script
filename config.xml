@@ -15,6 +15,7 @@ $Id: '.$version.'
         </echo>
 
         <file>src/$executor.php</file>
+        <file>src/BackupException.php</file>
 
     	<file dstdir="$dst"  dir="src">backup.php</file>
 	</files>

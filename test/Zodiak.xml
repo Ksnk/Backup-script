@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<dataset>
+    <table name="Zodiak">
+        <column>IdZodiak</column>
+        <column>Zodiak</column>
+        <row>
+            <value>1</value>
+            <value>Овен</value>
+        </row>
+        <row>
+            <value>2</value>
+            <value>Телец</value>
+        </row>
+        <row>
+            <value>3</value>
+            <value>Близнецы</value>
+        </row>
+        <row>
+            <value>4</value>
+            <value>Рак</value>
+        </row>
+        <row>
+            <value>5</value>
+            <value>Лев</value>
+        </row>
+        <row>
+            <value>6</value>
+            <value>Дева</value>
+        </row>
+        <row>
+            <value>7</value>
+            <value>Весы</value>
+        </row>
+        <row>
+            <value>8</value>
+            <value>Скорпион</value>
+        </row>
+        <row>
+            <value>9</value>
+            <value>Стрелец</value>
+        </row>
+        <row>
+            <value>10</value>
+            <value>Козерог</value>
+        </row>
+        <row>
+            <value>11</value>
+            <value>Водолей</value>
+        </row>
+        <row>
+            <value>12</value>
+            <value>Рыбы</value>
+        </row>
+
+    </table>
+</dataset>

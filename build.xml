@@ -38,22 +38,22 @@ lasttarget=${target}
 
             <param name="executor" default="URI_executor"/>
 
-                <files>
-                    <echo>
-                    <![CDATA[<%  $buildtime=date('ymdHi'); point_start('hat');echo
-            '----------------------------------------------------------------------------
-            $Id: '.$version.'
-             Rev: '.$svn_revision.', Modified: '.$svn_modified.'
-             SVN: '.$svn_url.'$
-            ----------------------------------------------------------------------------
-            '.$license.'
-            ----------------------------------------------------------------------------'; point_finish() ;%>]]>
-                    </echo>
+            <files>
+                <echo>
+                <![CDATA[<%  $buildtime=date('ymdHi'); point_start('hat');echo
+'----------------------------------------------------------------------------
+$Id: '.$version.'
+ Rev: '.$svn_revision.', Modified: '.$svn_modified.'
+ SVN: '.$svn_url.'$
+----------------------------------------------------------------------------
+'.$license.'
+----------------------------------------------------------------------------'; point_finish() ;%>]]>
+                </echo>
 
-                    <file>src/$executor.php</file>
+                <file>src/$executor.php</file>
 
-                	<file dstdir="$dst"  dir="src">backup.php</file>
-            	</files>
+                <file dstdir="$dst"  dir="src">backup.php</file>
+            </files>
         </preprocess>
     </target>
 
