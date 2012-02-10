@@ -5,7 +5,7 @@
 
     <!-- Sets the DSTAMP, TSTAMP and TODAY properties -->
     <tstamp/>
-    <property file="../env.prop" />
+    <!--<property file="../env.prop" />-->
 
     <!-- настройка проекта на место -->
     <property name="sitedst" value="z:/home/localhost/www/rights"/>
@@ -21,12 +21,12 @@ svn_modified=$WCDATE$
 svn_url=$WCURL$
 lasttarget=${target}
 ]]>        </echo>
-        <exec executable="SubWCRev" dir=".">
+     <!--   <exec executable="SubWCRev" dir=".">
             <arg file="." />
             <arg file="svn.prop" />
             <arg file="svn.prop" />
             <arg value="-f" />
-        </exec>
+        </exec> -->
     </target>
 
     <target name="build.allinone" depends="property" description="build allinone part">
