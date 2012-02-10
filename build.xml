@@ -77,7 +77,7 @@ $Id: '.$version.'
         </preprocess>
     </target>
 
-    <target name="build.all" depends="property,build.allinone,build.plugin" description="build all"/>
+    <target name="build.all" depends="property,build.plugin,build.allinone" description="build all"/>
 
     <target name='test'>
     <exec
