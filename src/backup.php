@@ -129,6 +129,7 @@ class BACKUP {
                     $name.='.bz2';
             }
         }
+        $this->fsize = 0;
 
         if($this->opt['sql'] && $mode=='r'){
             $handle=@fopen("php://temp", "w+b");
@@ -160,7 +161,6 @@ class BACKUP {
             $this->hctx = hash_init("crc32b");// set up the CRC32 hashing context
             // turn off the time limit
             if (!ini_get("safe_mode")) set_time_limit(0);
-            $this->fsize = 0;
             return $handle;
         }
         else if($this->method=='sql.gz')
@@ -185,7 +185,11 @@ class BACKUP {
         if(!empty($this->fltr)){
             stream_filter_remove($this->fltr);$this->fltr=null;
             // write the original crc and uncompressed file size
-            fwrite($handle, pack("VV", hash_final($this->hctx, TRUE),$this->fsize), 8);
+            $crc = hash_final($this->hctx, TRUE);
+                // need to reverse the hash_final string so it's little endian
+            fwrite($handle, $crc[3].$crc[2].$crc[1].$crc[0], 4);
+            //fwrite($handle, pack("V", hash_final($this->hctx, TRUE)), 4);
+            fwrite($handle, pack("V",$this->fsize), 4);
         }
         // just a magic! No matter a protocol
         fclose($handle);
@@ -203,10 +207,16 @@ class BACKUP {
         $buf='';
         @ignore_user_abort(1); // ибо нефиг
         //Seek to the end
-        fseek($handle, 0, SEEK_END);
-        $total = ftell($handle);
+        if($this->opt['method']=='sql.gz'){
+            gzseek($handle, 0, SEEK_END);
+            $total = gztell($handle);
+            gzseek($handle, 0, SEEK_SET);
+        } else {
+            fseek($handle, 0, SEEK_END);
+            $total = ftell($handle);
+            fseek($handle, 0, SEEK_SET);
+        }
         $curptr=0;
-        fseek($handle, 0, SEEK_SET);
         $this->progress(array('name'=>'restore','val'=>0,'total'=>$total));
         do{
             $string=fread($handle,self::$MAXBUF);

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head><title>Mysql Backup utility</title>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <style type="text/css">
+        table td {
+            vertical-align: top;
+        }
+
+        textarea, select {
+            min-width: 100px;
+        }
+
+        iframe {
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+<form target="myframe" method='post' action='' enctype="multipart/form-data">
+    <center>
+        <fieldset>
+            <legend><input type='radio' name='type' value='restore' checked='checked'>restore</legend>
+            <table>
+                <tr>
+                    <td>
+                        <input type="file" name="filename"></td>
+                    <td>
+                        <textarea name="sql" rows="6"></textarea></td>
+                    <td>$filenames
+                    </td>
+                </tr>
+            </table>
+        </fieldset>
+        <fieldset>
+            <legend><input type='radio' name='type' value='backup'>backup</legend>
+            <input type="checkbox" name="onthefly"> - не сохранять дамп на сервере
+        </fieldset>
+        <input type="submit" value="do it">
+    </center>
+</form>
+<iframe name="myframe" id="myframe"></iframe>
+</body>
+</html>

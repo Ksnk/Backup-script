@@ -1,36 +1,15 @@
 <?php
 /** @description URI executor for BACKUP-script project */
-/*<% point_start('execute'); %>/**/
-
+/*<% // just a magic
+ point_start('progress_html');include('progress.html');point_finish('progress_html');
+ point_start('main_html');include('main.html');point_finish('main_html');
+ point_start('execute'); %>/**/
 /**
  * This is a first part of ALL-IN-ONE-FILE build of project
  * Main purpose - provide all possible parameters with URI
  * for list of all parameters look at main file options
  */
 
-$progress= <<<HTML
-<!DOCTYPE html><html><head><title>Backup utility</title>
-<meta http-equiv="content-type" content="text/html; charset=utf-8">
-<script type="text/javascript">
-function progress(o){
-console.log(o,o.name+' '+o.val);
-var progress='';
-if(o.val+''===o.val){
-var x=document.getElementById('log');
-x.insertBefore(document.createElement('br'),x.firstChild);
-x.insertBefore(document.createTextNode(o.name+' '+o.val),x.firstChild);
-} else {
-progress=o.name+' '+(100*o.val/o.total)+'%';
-}
-document.getElementById('progress').innerHTML=progress;
-}
-</script>
-</head><body>
-<div id="progress"></div>
-<div id="log">.</div>
-</body>
-</html>
-HTML;
 /**
  * function to show a progress with plain html style.
  * Just send 4096 commented spaces for shure it been displayed
@@ -39,29 +18,7 @@ HTML;
  * @param $total
  */
 function progress(&$val){
-    static $progress= <<<HTML
-<!DOCTYPE html><html><head><title>Backup utility</title>
-<meta http-equiv="content-type" content="text/html; charset=utf-8">
-<script type="text/javascript">
-function progress(o){
-console.log(o,o.name+' '+o.val);
-var progress='';
-if(o.val+''===o.val){
-var x=document.getElementById('log');
-x.insertBefore(document.createElement('br'),x.firstChild);
-x.insertBefore(document.createTextNode(o.name+' '+o.val),x.firstChild);
-} else {
-progress=o.name+' '+(100*o.val/o.total)+'%';
-}
-document.getElementById('progress').innerHTML=progress;
-}
-</script>
-</head><body>
-<div id="progress"></div>
-<div id="log">.</div>
-</body>
-</html>
-HTML;
+    static $progress="<%=point('progress_html','html2js');%>";
     if(!empty($progress)) {
         header('Content-type: text/html ; charset=utf-8');
         echo($progress);$progress='';
@@ -123,8 +80,8 @@ try{
                     $backup->options('file',$uploadedfile);
                     $backup->restore();
                 } else if (!empty($_POST['sql'])) {
-                    $backup->options('method','sql');
-                    $backup->options('sql',&$_POST['sql']);
+                    $backup->options(array(
+                        'method'=>'sql','sql'=>&$_POST['sql'],'code'=>'utf8'));
                     $backup->restore();
                 } else if (!empty($_POST['files'])) {
                     $backup->options('file',select_files($_POST['files']));
@@ -136,8 +93,9 @@ try{
                     $backup->options('onthefly',true);
                 }
                 $backup->make_backup();
-            }
-            echo '<a href="http://'.$_SERVER["HTTP_HOST"].$_SERVER['REQUEST_URI'].'"> Press to return back </a>';
+            } else
+                echo 'Nothing to do!<br>';
+           // echo '<a href="http://'.$_SERVER["HTTP_HOST"].$_SERVER['REQUEST_URI'].'"> Press to return back </a>';
            // header('location:http://'.$_SERVER["HTTP_HOST"].$_SERVER['REQUEST_URI']);
             exit;
         }
@@ -146,28 +104,10 @@ try{
         else $file=trim(dirname($_GET['file']));
         if(!empty($file)) $file.='/';*/
         $filenames=select_files();
-        echo <<<HTML
-<!DOCTYPE html><html><head><title>Mysql Backup utility</title>
-<meta http-equiv="content-type" content="text/html; charset=utf-8">
-<style type="text/css"> table td {vertical-align: top;} textarea, select {min-width:100px;}</style>
-</head><body>
-    <form method='post' action='' enctype="multipart/form-data"><center>
-    <fieldset><legend><input type='radio' name='type' value='restore' checked='checked'>restore</legend>
-    <table><tr><td>
-        <input type="file" name="filename"></td><td>
-        <textarea name="sql" rows="6"></textarea></td><td>$filenames
-    </td></tr></table>
-    </fieldset>
-    <fieldset><legend><input type='radio' name='type' value='backup'>backup</legend>
-        <input type="checkbox" name="onthefly"> - не сохранять дамп на сервере
-    </fieldset>
-    <input type="submit" value="do it">
-    </center></form>
-</body>
-</html>
-HTML;
+        echo "<%=point('main_html','html2js');%>";
     }
 } catch (BackupException $e) {
+    // todo: заменить var_dump на что-нибудь разумное
     var_dump($e->getMessage());
 }
 /*<% point_finish('execute'); %>*/

@@ -9,10 +9,9 @@
 
 
 /**
- * @description URI executor for BACKUP-script project
- * This is a first part of ALL-IN-ONE-FILE build of this project
+ * This is a first part of ALL-IN-ONE-FILE build of project
  * Main purpose - provide all possible parameters with URI
- * for all possible get parameters look at main file options
+ * for list of all parameters look at main file options
  */
 
 /**
@@ -23,29 +22,103 @@
  * @param $total
  */
 function progress(&$val){
-    echo '.'.$val['name'].'['.(100*$val['val']/$val['total']).'%]<!--'.str_pad(' ',4096).'--><br>';
+    static $progress="<!DOCTYPE html> <html> <head><title>Backup utility</title> <meta http-equiv=\"content-type\" content=\"text/html; charset=utf-8\"> <script type=\"text/javascript\"> function progress(o) { var progress = ''; if (o.val + '' === o.val) { var x = document.getElementById('log'); x.insertBefore(document.createElement('br'), x.firstChild); x.insertBefore(document.createTextNode(o.name + ' ' + o.val), x.firstChild); } else { progress = o.name + ' ' + (100 * o.val / o.total) + '%'; } document.getElementById('progress').innerHTML = progress; } </script> </head> <body> <div id=\"progress\"></div> <div id=\"log\">.</div> </body> </html>";
+    if(!empty($progress)) {
+        header('Content-type: text/html ; charset=utf-8');
+        echo($progress);$progress='';
+    }
+    if($val['total']==0)$val['total']=1;
+    printf('<script type="text/javascript">progress(%s);</script><!--'.str_pad(' ',4096).'-->',
+        json_encode($val)
+    );
+}
+
+function select_files($s=''){
+    if(empty($_GET['file']))
+        $file='';
+    else if(is_dir($_GET['file']))
+        $file=rtrim($_GET['file'],' \/');
+    else
+        $file=trim(dirname($_GET['file']));
+    if(!empty($file))
+        $file.='/';
+    if(!empty($s)) return $file.$s;
+    $a=array();
+    foreach(glob($file."{*.sql,*.sql.gz,*.sql.bz2}",GLOB_BRACE) as $v){
+        $a[]=basename($v);
+    }
+    if(empty($a))
+        return '';
+    else
+        return '<select size="6" name="files"><option>'.implode('</option><option>',$a).'</option></select>';
 }
 
 /**
  * main execution loop
  */
 try{
+    // to show faster progress, :)
     $backup=new BACKUP($_GET);
     $backup->options('progress','progress');
+    // $backup->options('onthefly',true);
     if(!empty($_GET['restore'])) {
-        echo $backup->restore()?'ok':'Fail';
+        echo $backup->restore()?'':'Fail';
+    } else if(!empty($_GET['backup'])) {
+        echo $backup->make_backup()?'':'Fail';
     } else {
-        echo $backup->make_backup()?'ok':'Fail';
+        if('POST'==$_SERVER['REQUEST_METHOD']){
+            //var_dump($_POST);var_dump($_FILES);
+            if('restore'==$_POST['type']){
+                // check if file uploaded
+                $uploadedfile='';$file='';
+                if(!empty($_FILES))
+                foreach($_FILES as $f){
+                    if(!is_readable($f['tmp_name'])){
+                        $uploadedfile=$f['tmp_name'];
+                        if(preg_match('/\.(sql|sql\.bz2|sql\.gz)$/i', $f['name'], $m))
+                            $backup->options('method',strtolower($m[1]));
+                        break;
+                    }
+                }
+                if(!empty($uploadedfile)){
+                    $backup->options('file',$uploadedfile);
+                    $backup->restore();
+                } else if (!empty($_POST['sql'])) {
+                    $backup->options(array(
+                        'method'=>'sql','sql'=>&$_POST['sql'],'code'=>'utf8'));
+                    $backup->restore();
+                } else if (!empty($_POST['files'])) {
+                    $backup->options('file',select_files($_POST['files']));
+                    $backup->restore();
+                }
+            } else if('backup'==$_POST['type']){
+                //var_dump($_POST);var_dump($_FILES);
+                if(!empty($_POST['onthefly'])){
+                    $backup->options('onthefly',true);
+                }
+                $backup->make_backup();
+            } else
+                echo 'Nothing to do!<br>';
+           // echo '<a href="http://'.$_SERVER["HTTP_HOST"].$_SERVER['REQUEST_URI'].'"> Press to return back </a>';
+           // header('location:http://'.$_SERVER["HTTP_HOST"].$_SERVER['REQUEST_URI']);
+            exit;
+        }
+        header('Content-type: text/html ; charset=utf-8');
+        /*if(empty($_GET['file'])) $file='';
+        else $file=trim(dirname($_GET['file']));
+        if(!empty($file)) $file.='/';*/
+        $filenames=select_files();
+        echo "<!DOCTYPE html> <html> <head><title>Mysql Backup utility</title> <meta http-equiv=\"content-type\" content=\"text/html; charset=utf-8\"> <style type=\"text/css\"> table td { vertical-align: top; } textarea, select { min-width: 100px; } iframe { width: 100%; } </style> </head> <body> <form target=\"myframe\" method='post' action='' enctype=\"multipart/form-data\"> <center> <fieldset> <legend><input type='radio' name='type' value='restore' checked='checked'>restore</legend> <table> <tr> <td> <input type=\"file\" name=\"filename\"></td> <td> <textarea name=\"sql\" rows=\"6\"></textarea></td> <td>$filenames </td> </tr> </table> </fieldset> <fieldset> <legend><input type='radio' name='type' value='backup'>backup</legend> <input type=\"checkbox\" name=\"onthefly\"> - не сохранять дамп на сервере </fieldset> <input type=\"submit\" value=\"do it\"> </center> </form> <iframe name=\"myframe\" id=\"myframe\"></iframe> </body> </html>";
     }
 } catch (BackupException $e) {
+    // todo: заменить var_dump на что-нибудь разумное
     var_dump($e->getMessage());
 }
-/*
-
 /**
  * Exception для определенности - будет тикать в случае ошибки
  */
 class BackupException extends Exception { }
+/*
 
 /**
  * собственно класс бякапа
@@ -61,20 +134,22 @@ class BACKUP {
     private $opt=array(
 // настройка на базу
         'host'=>'localhost', // хост
-        'user'=>'root', // имя-парол
+        'user'=>'root', // имя-пароль
         'password'=>'',
         'base'=>'tmp',  // имя базы данных
 //  backup-only параметры
         'include'=>'*', // маска в DOS стиле со * и ? . backup-only
         'exclude'=>'',  // маска в DOS стиле со * и ? . backup-only
-        'dir'=>'./',    // путь со слешем до каталога хранения бякапов . backup-only
         'compress'=>9, // уровень компрессии для gz  . backup-only
+        'method'=>'sql.gz', // 'sql.gz'|'sql.bz2'|'sql' - использовать gz или нет
+        'onthefly'=>false , // вывод гзипа прямо в броузер. Ошибки, правда, теряются напрочь...
 //  both-way параметры
+        'file'=>'',  // имя файла SQL-дампа для чтения или каталог (с / на конце) для создания базы
         'code'=>'utf8', // set NAMES 'code'
-        'progress'=>'', // функция для calback'а progress bara
-        'progressdelay'=>0.5, // время между тиками callback прогресс бара [0.5== полсекунды]
+        'progress'=>'', // функция для calback'а progress bar'a
+        'progressdelay'=>1, // время между тиками callback прогресс бара [0.5== полсекунды]
 //  restore-only параметры
-        'restore'=>'',  // имя файла SQL-дампа для чтения
+        'sql'=>'', // plain sql to execute with backup class.
     );
 
     /**
@@ -83,15 +158,24 @@ class BACKUP {
      */
     static private $MAXBUF=32768    ;
 
+    /** on-the-fly support*/
+    private $fsize,$fltr,$hctx ;
+
     /** @var bool|\resource */
     private $link = false;
 
     /** @var string - sql|sql.gz - метод работы с файлами */
     private $method = 'file';
 
+    /**
+     *
+     * @param $name
+     * @param bool $call
+     * @return mixed
+     */
     private function progress($name,$call=false){
         static $starttime,$param=array();
-        if(!isset($this->opt['progress'])) return;
+        if(!is_callable($this->opt['progress'])) return;
         if(is_array($name))
             $param=array_merge($param,$name);
         else
@@ -103,7 +187,12 @@ class BACKUP {
         }
     }
 
-    public function options($options,$val=''){
+    /**
+     * @param string $options
+     * @param string $val
+     * @return array
+     */
+    public function options($options='',$val=''){
         if(is_array($options))
             $this->opt=array_merge($this->opt,array_intersect_key($options,$this->opt));
         else
@@ -113,7 +202,7 @@ class BACKUP {
      * просто конструктор
      * @param array $options - те параметры, которые отличаются от дефолтных
      */
-    public function __construct($options){
+    public function __construct($options=array()){
         /* вот так устанавливаются параметры */
         $this->options(&$options);
         // so let's go
@@ -140,26 +229,81 @@ class BACKUP {
      * @return resource - вертает результат соответствующей операции
      */
     function open($name,$mode='r'){
-        if($mode == 'r') {
-            if(preg_match('/\.(sql|sql\.gz)$/i', $name, $m))
-                $this->method = strtolower($m[1]);
-        } else {
-            $this->method='sql.gz';// todo: проверить оно есть или ненадо!
-            $name.='.gz';
+        if(preg_match('/\.(sql|sql\.bz2|sql\.gz)$/i', $name, $m))
+            $this->method = strtolower($m[1]);
+        if($mode == 'w' && $this->method=='sql') { // forcibly change type to gzip
+            $this->method=$this->opt['method'];
+            if(!$this->opt['onthefly']){
+                if ($this->method=='sql.gz')
+                    $name.='.gz';
+                else if($this->method=='sql.bz2')
+                    $name.='.bz2';
+            }
         }
-        if($this->method=='sql.gz')
+        $this->fsize = 0;
+
+        if($this->opt['sql'] && $mode=='r'){
+            $handle=@fopen("php://temp", "w+b");
+            if ($handle === FALSE)
+                throw new BackupException('It\' impossible to use `php://temp`, sorry');
+            fwrite($handle,preg_replace(
+                '~;\s*(insert|create|delete|drop)~i',";\n\\1",
+                $this->opt['sql']
+            ));
+            fseek($handle,0);
+            return $handle;
+        }
+        else if($this->opt['onthefly'] && $mode=='w'){ // gzzip on-the-fly without file
+            $this->opt['progress']=''; // switch off progress  :(
+            $handle=@fopen("php://output", "wb");
+            if ($handle === FALSE)
+                throw new BackupException('It\' impossible to use `gzip-on-the-fly`, sorry');
+            header($_SERVER["SERVER_PROTOCOL"] . ' 200 OK');
+            header('Content-Type: application/octet-stream');
+            header('Connection: keep-alive'); // so it's possible to skip filesize header
+            header('Content-Disposition: attachment; filename="' . basename($name.'.gz') . '";');
+            // write gzip header
+            fwrite($handle, "\x1F\x8B\x08\x08".pack("V", time())."\0\xFF", 10);
+            // write the original file name
+            $oname = str_replace("\0", "", $name);//TODO: wtf?
+            fwrite($handle, $oname."\0", 1+strlen($oname));
+            // add the deflate filter using default compression level
+            $this->fltr = stream_filter_append($handle, "zlib.deflate", STREAM_FILTER_WRITE, -1);
+            $this->hctx = hash_init("crc32b");// set up the CRC32 hashing context
+            // turn off the time limit
+            if (!ini_get("safe_mode")) set_time_limit(0);
+            return $handle;
+        }
+        else if($this->method=='sql.gz')
             return gzopen($name,$mode.($mode == 'w' ? $this->opt['compress'] : ''));
+        else if($this->method=='sql.bz2')
+            return bzopen($name, $mode);
         else
             return fopen($name,"{$mode}b");
+    }
+
+    function write($handle,$str){
+        if(!empty($this->fltr)){
+            hash_update($this->hctx, $str);
+            $this->fsize+=strlen($str);
+        }
+        return fwrite($handle,&$str);
     }
     /**
      * @param resource $handle
      */
     function close($handle){
-         if($this->method=='sql.gz')
-            gzclose($handle);
-        else
-            fclose($handle);
+        if(!empty($this->fltr)){
+            stream_filter_remove($this->fltr);$this->fltr=null;
+            // write the original crc and uncompressed file size
+            $crc = hash_final($this->hctx, TRUE);
+                // need to reverse the hash_final string so it's little endian
+            fwrite($handle, $crc[3].$crc[2].$crc[1].$crc[0], 4);
+            //fwrite($handle, pack("V", hash_final($this->hctx, TRUE)), 4);
+            fwrite($handle, pack("V",$this->fsize), 4);
+        }
+        // just a magic! No matter a protocol
+        fclose($handle);
     }
 
     /**
@@ -168,16 +312,22 @@ class BACKUP {
      */
     public function restore(){
 
-        $handle=$this->open($this->opt['restore']);
-        if(!$handle) throw new BackupException('File not found "'.$this->opt['restore'].'"');
+        $handle=$this->open($this->opt['file']);
+        if(!$handle) throw new BackupException('File not found "'.$this->opt['file'].'"');
         $notlast=true;
         $buf='';
         @ignore_user_abort(1); // ибо нефиг
         //Seek to the end
-        fseek($handle, 0, SEEK_END);
-        $total = ftell($handle);
+        if($this->opt['method']=='sql.gz'){
+            gzseek($handle, 0, SEEK_END);
+            $total = gztell($handle);
+            gzseek($handle, 0, SEEK_SET);
+        } else {
+            fseek($handle, 0, SEEK_END);
+            $total = ftell($handle);
+            fseek($handle, 0, SEEK_SET);
+        }
         $curptr=0;
-        fseek($handle, 0, SEEK_SET);
         $this->progress(array('name'=>'restore','val'=>0,'total'=>$total));
         do{
             $string=fread($handle,self::$MAXBUF);
@@ -207,7 +357,7 @@ class BACKUP {
         }
         while($notlast);
         $this->close($handle);
-        $this->progress($total,true);
+        $this->progress('Ok',true);
         return true;
     }
 
@@ -254,8 +404,12 @@ class BACKUP {
         mysql_free_result($result);
 
         do{
-            $handle = $this->open($this->opt['dir'].'db-backup-' . date('Ymd') . '.sql','w');
-            fwrite($handle, sprintf("--\n"
+            if(trim(basename($this->opt['file']))=='') {
+                if (dirname($this->opt['file'])=='') $this->opt['file']='./';
+                $this->opt['file'].='db-backup-' . date('Ymd') . '.sql';
+            }
+            $handle = $this->open($this->opt['file'],'w');
+            $this->write($handle, sprintf("--\n"
                 .'-- "%s" database with +"%s"-"%s" tables'."\n"
                 .'-- backup created: %s'."\n"
                 ."--\n\n"
@@ -273,9 +427,9 @@ class BACKUP {
                 while($col = mysql_fetch_array($r)) {
                     $notNum[$num_fields++] = preg_match("/^(tinyint|smallint|mediumint|bigint|int|float|double|real|decimal|numeric|year)/", $col['Type']) ? 0 : 1;
                 }
-                fwrite($handle,'DROP TABLE IF EXISTS `' . $table . '`;');
+                $this->write($handle,'DROP TABLE IF EXISTS `' . $table . '`;');
                 $row2 = mysql_fetch_row(mysql_query('SHOW CREATE TABLE ' . $table));
-                fwrite($handle,"\n\n" . $row2[1] . ";\n\n");
+                $this->write($handle,"\n\n" . $row2[1] . ";\n\n");
 
                 $result = mysql_unbuffered_query('SELECT * FROM `' . $table.'`',$this->link);
                 $rowcnt=0;
@@ -298,22 +452,22 @@ class BACKUP {
                     $str_len+=strlen($str);
                     // Смысл - хочется выполнять не очень здоровые SQL запросы, если есть возможность.
                     if($str_len>self::$MAXBUF-60){
-                        fwrite($handle,"INSERT INTO `" . $table . "` VALUES\n  ".implode(",\n  ",$retrow).";\n\n");
+                        $this->write($handle,"INSERT INTO `" . $table . "` VALUES\n  ".implode(",\n  ",$retrow).";\n\n");
                         $retrow=array();
                         $str_len=strlen($str);
                     }
                     $retrow[]=$str;
                 }
                 unset($row);
-                $this->progress($total[$table],true);
+                $this->progress('Ok',true);
 
                 if(count($retrow)>0){
-                    fwrite($handle,"INSERT INTO `" . $table . "` VALUES\n  ".implode(",\n  ",$retrow).";\n\n");
+                    $this->write($handle,"INSERT INTO `" . $table . "` VALUES\n  ".implode(",\n  ",$retrow).";\n\n");
                     $retrow=array();
                     $str_len=0;
                 }
                 mysql_free_result($result);
-                fwrite($handle,"\n");
+                $this->write($handle,"\n");
             }
 
             //сохраняем файл
