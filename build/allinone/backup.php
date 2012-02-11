@@ -114,11 +114,12 @@ try{
     // todo: заменить var_dump на что-нибудь разумное
     var_dump($e->getMessage());
 }
+
+
 /**
  * Exception для определенности - будет тикать в случае ошибки
  */
 class BackupException extends Exception { }
-/*
 
 /**
  * собственно класс бякапа
