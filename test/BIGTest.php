@@ -1,5 +1,7 @@
 <?php
 
+define('TESTBASESIZE',30);// 30~ about 3mb sql log, 3000 - 300mb as well
+
     require_once dirname(__FILE__).'\..\src\backup.php';
     require_once dirname(__FILE__).'\..\src\BackupException.php';
     require_once 'PHPUnit/Extensions/Database/TestCase.php';
@@ -46,7 +48,7 @@ CREATE TABLE `ZodiakX` (
 ";
                 $handle=gzopen($name,'w8');
                 fwrite($handle,$sql);
-                for($j=0;$j<30;$j++){ // was 3000 !!!!
+                for($j=0;$j<TESTBASESIZE;$j++){
                     fwrite($handle,'INSERT INTO `ZodiakX` ( `Zodiak`) VALUES
 ');
                     for($i=0;$i<100;$i++){
