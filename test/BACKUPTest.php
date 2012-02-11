@@ -1,6 +1,7 @@
 <?php
 
 require_once dirname(__FILE__).'\..\src\backup.php';
+require_once dirname(__FILE__).'\..\src\BackupException.php';
 require_once 'PHPUnit/Extensions/Database/TestCase.php';
 
 /**
@@ -103,6 +104,52 @@ class BACKUPTest extends PHPUnit_Extensions_Database_TestCase
         $this->assertDataSetsEqual($expectedDataSet, $dataSet);
     }
 
+    /**
+     * Chеcking explicit situations
+     * @covers BACKUP::restore
+     * @expectedException BackupException
+     */
+    public function testWrongdatabaseUses()
+    {
+        $this->object = new BACKUP($this->options);
+        $this->object->options('sql','uses `wrong base name`;');
+        $this->object->restore();
+    }
+
+    /**
+     * Chеcking wrong file name
+     * @covers BACKUP::restore
+     * @expectedException BackupException
+     */
+    public function testWrongFileNameGz()
+    {
+        $this->object = new BACKUP($this->options);
+        $this->object->options('file','xx:/xx/xx/xx.sql.gz');
+        $this->object->restore();
+    }
+
+    /**
+     * Chеcking wrong file name
+     * @covers BACKUP::restore
+     * @expectedException BackupException
+     */
+    public function testWrongFileNameSql()
+    {
+        $this->object = new BACKUP($this->options);
+        $this->object->options('file','xx:/xx/xx/xx.sql');
+        $this->object->restore();
+    }
+    /**
+     * Chеcking wrong file name
+     * @covers BACKUP::restore
+     * @expectedException BackupException
+     */
+    public function testWrongFileNameBz2l()
+    {
+        $this->object = new BACKUP($this->options);
+        $this->object->options('file','xx:/xx/xx/xx.sql.bz2');
+        $this->object->restore();
+    }
 
 }
 ?>

@@ -168,6 +168,9 @@ class BACKUP {
     /** @var string - sql|sql.gz - метод работы с файлами */
     private $method = 'file';
 
+    function log($message){
+    }
+
     /**
      *
      * @param $name
@@ -275,12 +278,16 @@ class BACKUP {
             if (!ini_get("safe_mode")) set_time_limit(0);
             return $handle;
         }
-        else if($this->method=='sql.gz')
-            return gzopen($name,$mode.($mode == 'w' ? $this->opt['compress'] : ''));
-        else if($this->method=='sql.bz2')
-            return bzopen($name, $mode);
-        else
-            return fopen($name,"{$mode}b");
+        else {
+            if(!is_readable($name)) return FALSE;
+            if($this->method=='sql.gz'){
+                return gzopen($name,$mode.($mode == 'w' ? $this->opt['compress'] : ''));
+            } else if($this->method=='sql.bz2'){
+                return bzopen($name, $mode);
+            } else {
+                return fopen($name,"{$mode}b");
+            }
+        }
     }
 
     function write($handle,$str){
@@ -312,15 +319,17 @@ class BACKUP {
      * @return bool
      */
     public function restore(){
-
+        $this->log(sprintf('Memory before restore "%s" - %d ',$this->opt['file'],memory_get_usage()));
         $handle=$this->open($this->opt['file']);
-        if(!$handle) throw new BackupException('File not found "'.$this->opt['file'].'"');
+        if($handle==FALSE) throw new BackupException('File not found "'.$this->opt['file'].'"');
         $notlast=true;
         $buf='';
         @ignore_user_abort(1); // ибо нефиг
+        @set_time_limit(0); // ибо нефиг, again
         //Seek to the end
         if($this->opt['method']=='sql.gz'){
-            gzseek($handle, 0, SEEK_END);
+            // find a sizesize
+            @gzseek($handle, 0, SEEK_END);
             $total = gztell($handle);
             gzseek($handle, 0, SEEK_SET);
         } else {
@@ -355,10 +364,15 @@ class BACKUP {
                 }
             };
 
+            unset($string,$xx); // очищаем наиболее одиозные хапалки памяти
         }
         while($notlast);
+        unset($buf);// очищаем наиболее одиозные хапалки памяти
+
         $this->close($handle);
         $this->progress('Ok',true);
+        $this->log(sprintf('Memory after restore "%s" - %d ',$this->opt['file'],memory_get_usage()));
+
         return true;
     }
 
@@ -369,6 +383,7 @@ class BACKUP {
     public function make_backup()
     {
         $include=array();$exclude=array();
+        $this->log(sprintf('Memory before makebackup "%s" - %d ',$this->opt['file'],memory_get_usage()));
         // делаем регулярки из простой маски
         foreach(array('include','exclude') as $s){
             $$s=explode(',',$this->opt[$s]);
@@ -400,18 +415,25 @@ class BACKUP {
                     break;
                 }
             }
+            unset($row);
         }
+        unset($include,$exclude);
         //var_dump($tables);
         mysql_free_result($result);
+
+        $this->log(sprintf('Memory 1step makebackup "%s" - %d ',$this->opt['file'],memory_get_usage()));
+        @ignore_user_abort(1); // ибо нефиг
+        @set_time_limit(0); // ибо нефиг, again
 
         do{
             if(trim(basename($this->opt['file']))=='') {
                 if (dirname($this->opt['file'])=='') $this->opt['file']='./';
-                $this->opt['file'].='db-backup-' . date('Ymd') . '.sql';
+                $this->opt['file'].='db-'.$this->opt['base'].'-' . date('Ymd') . '.sql';
             }
             $handle = $this->open($this->opt['file'],'w');
             $this->write($handle, sprintf("--\n"
                 .'-- "%s" database with +"%s"-"%s" tables'."\n"
+                .'--     '.implode("\n--     ",$tables)."\n"
                 .'-- backup created: %s'."\n"
                 ."--\n\n"
                 ,$this->opt['base'],$this->opt['include'],$this->opt['exclude'],date('j M y H:i:s')));
@@ -421,15 +443,21 @@ class BACKUP {
             foreach ($tables as $table)
             {
 
+                if(isset($notNum)) unset ($notNum);
                 $notNum = array();
+                $this->log(sprintf('Memory 3step makebackup "%s" - %d ',$table,memory_get_usage()));
                 // нагло потырено у Simpex Dumper'а
                 $r = mysql_query("SHOW COLUMNS FROM `$table`");
                 $num_fields = 0;
                 while($col = mysql_fetch_array($r)) {
                     $notNum[$num_fields++] = preg_match("/^(tinyint|smallint|mediumint|bigint|int|float|double|real|decimal|numeric|year)/", $col['Type']) ? 0 : 1;
                 }
+                mysql_free_result($r);
                 $this->write($handle,'DROP TABLE IF EXISTS `' . $table . '`;');
-                $row2 = mysql_fetch_row(mysql_query('SHOW CREATE TABLE ' . $table));
+                $r=mysql_query('SHOW CREATE TABLE ' . $table);
+                $row2 = mysql_fetch_row($r);
+                if(is_resource($r)) mysql_free_result($r);
+
                 $this->write($handle,"\n\n" . $row2[1] . ";\n\n");
 
                 $result = mysql_unbuffered_query('SELECT * FROM `' . $table.'`',$this->link);
@@ -454,23 +482,24 @@ class BACKUP {
                     // Смысл - хочется выполнять не очень здоровые SQL запросы, если есть возможность.
                     if($str_len>self::$MAXBUF-60){
                         $this->write($handle,"INSERT INTO `" . $table . "` VALUES\n  ".implode(",\n  ",$retrow).";\n\n");
+                        unset($retrow);
                         $retrow=array();
                         $str_len=strlen($str);
                     }
                     $retrow[]=$str;
+                    unset($row,$str);
                 }
-                unset($row);
                 $this->progress('Ok',true);
 
                 if(count($retrow)>0){
                     $this->write($handle,"INSERT INTO `" . $table . "` VALUES\n  ".implode(",\n  ",$retrow).";\n\n");
+                    unset($retrow);
                     $retrow=array();
                     $str_len=0;
                 }
                 mysql_free_result($result);
                 $this->write($handle,"\n");
             }
-
             //сохраняем файл
             $this->close($handle);
 
@@ -485,11 +514,13 @@ class BACKUP {
                         $next_try=true;
                     }
                 }
+                unset($row);
             }
             mysql_free_result($result);
 
         } while($next_try);
 
+        $this->log(sprintf('Memory after makebackup "%s" - %d ',$this->opt['file'],memory_get_usage()));
         return true;
     }
 }

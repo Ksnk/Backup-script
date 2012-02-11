@@ -34,6 +34,7 @@ lasttarget=${target}
 
         <preprocess  config="config.xml" force='force'>
             <param name="dst" value="build/allinone"/>
+            <param name="target" value="allinone"/>
             <param file="svn.prop"/>
 
             <param name="executor" default="URI_executor"/>
