@@ -194,7 +194,7 @@ class BACKUP {
             //fwrite($handle, pack("V", hash_final($this->hctx, TRUE)), 4);
             fwrite($handle, pack("V",$this->fsize), 4);
         }
-        // just a magic! No matter the protocol
+        // just a magic! No matter a protocol
         fclose($handle);
     }
 
