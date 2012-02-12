@@ -52,7 +52,7 @@ class BACKUP {
     /** @var string - sql|sql.gz - метод работы с файлами */
     private $method = 'file';
 
-    function log($message){
+    private function log($message){
       /*<% if ($target!='allinone') { echo $target %>*/
         static $x;
         $y=memory_get_usage();
@@ -169,7 +169,7 @@ class BACKUP {
             return $handle;
         }
         else {
-            if($this->opt['method']=='r' && !is_readable($name)) return FALSE;
+            if($mode=='r' && !is_readable($name)) return FALSE;
             if($this->method=='sql.bz2'){
                 if(function_exists('bzopen'))
                     return bzopen($name, $mode);
