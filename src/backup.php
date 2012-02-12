@@ -173,11 +173,17 @@ class BACKUP {
             return $handle;
         }
         else {
-            if(!is_readable($name)) return FALSE;
+            if($this->opt['method']=='r' && !is_readable($name)) return FALSE;
+            if($this->method=='sql.bz2'){
+                if(function_exists('bzopen'))
+                    return bzopen($name, $mode);
+                else {
+                    $this->method='sql.gz';
+                    $name=preg_replace('/\.bz2$/i','.gz', $name);
+                }
+            }
             if($this->method=='sql.gz'){
                 return gzopen($name,$mode.($mode == 'w' ? $this->opt['compress'] : ''));
-            } else if($this->method=='sql.bz2'){
-                return bzopen($name, $mode);
             } else {
                 return fopen($name,"{$mode}b");
             }
@@ -215,7 +221,8 @@ class BACKUP {
     public function restore(){
         $this->log(sprintf('Memory before restore "%s" - %d ',$this->opt['file'],memory_get_usage()));
         $handle=$this->open($this->opt['file']);
-        if($handle==FALSE) throw new BackupException('File not found "'.$this->opt['file'].'"');
+        if(!is_resource($handle))
+            throw new BackupException('File not found "'.$this->opt['file'].'"');
         $notlast=true;
         $buf='';
         @ignore_user_abort(1); // ибо нефиг
@@ -325,6 +332,8 @@ class BACKUP {
                 $this->opt['file'].='db-'.$this->opt['base'].'-' . date('Ymd') . '.sql';
             }
             $handle = $this->open($this->opt['file'],'w');
+            if(!$handle)
+                throw new BackupException('Can\'t create file "'.$this->opt['file'].'"');
             $this->write($handle, sprintf("--\n"
                 .'-- "%s" database with +"%s"-"%s" tables'."\n"
                 .'--     '.implode("\n--     ",$tables)."\n"
