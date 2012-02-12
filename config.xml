@@ -4,11 +4,11 @@
 
     <files>
         <echo>
-        <![CDATA[<%  $buildtime=date('ymdHi'); point_start('hat');echo
+            <![CDATA[<%  $buildtime=date('ymdHi'); point_start('hat');echo
 '----------------------------------------------------------------------------
-$Id: '.$version.'
- Rev: '.$svn_revision.', Modified: '.$svn_modified.'
- SVN: '.$svn_url.'$
+$Id: '.$version.',
+ver: '.$tags.', Last build: '.$last_build.'
+GIT: '.$git_url.'$
 ----------------------------------------------------------------------------
 '.$license.'
 ----------------------------------------------------------------------------'; point_finish() ;%>]]>

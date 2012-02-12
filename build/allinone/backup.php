@@ -1,9 +1,11 @@
 <?php
 /**
  * ----------------------------------------------------------------------------
- * $Id: BACKUP - MySql backup utility + class , sergekoriakin@gmail.com, Ver : 0.1
+ * $Id: Make sql-backup and restore from backup for mysql databases, sergekoriakin@gmail.com,
+ * ver: 1.0, Last build: 20120212 1642
+ * GIT: https://github.com/Ksnk/Backup-script$
  * ----------------------------------------------------------------------------
- * License GNU/LGPL - Serge Koriakin - (C) 2012 $
+ * License GNU/LGPL - Serge Koriakin - Jule 2010-2012
  * ----------------------------------------------------------------------------
  */
 

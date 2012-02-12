@@ -12,21 +12,21 @@
 
     <!-- so let's go -->
     <target name="property">
+        <gittag repository="."
+            list="true"
+            outputProperty="tags"
+            pattern="v_*" />
+        <php expression="preg_replace('/.*?\nv_/m','',trim('${tags}'))" returnProperty="tags"/>
+
         <echo file="svn.prop" append="false"><![CDATA[
-version=RIGHTS - full power realisation, sergekoriakin@gmail.com, Ver : 0.1
+version=Make sql-backup and restore from backup for mysql databases, sergekoriakin@gmail.com
 license=License GNU/LGPL - Serge Koriakin - Jule 2010-2012
 env_common=${common}
-svn_revision=$WCREV$
-svn_modified=$WCDATE$
-svn_url=$WCURL$
+tags=${tags}
+last_build=${DSTAMP} ${TSTAMP}
+git_url=https://github.com/Ksnk/Backup-script
 lasttarget=${target}
 ]]>        </echo>
-     <!--   <exec executable="SubWCRev" dir=".">
-            <arg file="." />
-            <arg file="svn.prop" />
-            <arg file="svn.prop" />
-            <arg value="-f" />
-        </exec> -->
     </target>
 
     <target name="build.allinone" depends="property" description="build allinone part">
@@ -43,9 +43,9 @@ lasttarget=${target}
                 <echo>
                 <![CDATA[<%  $buildtime=date('ymdHi'); point_start('hat');echo
 '----------------------------------------------------------------------------
-$Id: '.$version.'
- Rev: '.$svn_revision.', Modified: '.$svn_modified.'
- SVN: '.$svn_url.'$
+$Id: '.$version.', ver: '.$tags.'
+ Last build: '.$last_build.'
+ GIT: '.$git_url.'$
 ----------------------------------------------------------------------------
 '.$license.'
 ----------------------------------------------------------------------------'; point_finish() ;%>]]>
@@ -86,5 +86,28 @@ $Id: '.$version.'
             checkreturn="true"
             logoutput="true"
     />
+    </target>
+    <!-- Cleanup repository-->
+    <target name='test2'>
+    <gitgc
+        repository="."
+        aggressive="true"
+        prune="1.week.ago" />
+    </target>
+    <target name="test3">
+        <gitlog
+            paths="."
+            format="oneline"
+            maxCount="2"
+            stat="true"
+            noMerges="false"
+            outputProperty="logs"
+            repository="." />
+        <gittag repository="."
+            list="true"
+            outputProperty="tags"
+            pattern="v_*" />
+        <php expression="preg_replace('/.*?\nv_/m','',trim('${tags}'))" returnProperty="tags"/>
+        <echo message="${tags}"/>
     </target>
 </project>
