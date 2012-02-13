@@ -2,7 +2,7 @@
 /**
  * ----------------------------------------------------------------------------
  * $Id: Make sql-backup and restore from backup for mysql databases, sergekoriakin@gmail.com,
- * ver: 1.0, Last build: 20120213 0226
+ * ver: 1.0, Last build: 20120214 0029
  * GIT: https://github.com/Ksnk/Backup-script$
  * ----------------------------------------------------------------------------
  * License GNU/LGPL - Serge Koriakin - Jule 2010-2012
@@ -87,6 +87,22 @@ class BACKUP {
             call_user_func($this->opt['progress'],&$param);
             $starttime=microtime(true);
         }
+    }
+
+    /**
+     * построить имя фала с помощью каталога из параметра opt['files']
+     * @param $name
+     */
+    public function directory($name=''){
+        if(empty($this->opt['file']))
+            $file='';
+        else if(is_dir($this->opt['file']))
+            $file=rtrim($this->opt['file'],' \/');
+        else
+            $file=trim(dirname($this->opt['file']));
+        if(!empty($file))
+            $file.='/';
+        return $file.$name;
     }
 
     /**
@@ -177,7 +193,7 @@ class BACKUP {
             return $handle;
         }
         else {
-            if($this->opt['method']=='r' && !is_readable($name)) return FALSE;
+            if($mode=='r' && !is_readable($name)) return FALSE;
             if($this->method=='sql.bz2'){
                 if(function_exists('bzopen'))
                     return bzopen($name, $mode);
@@ -330,10 +346,9 @@ class BACKUP {
         @ignore_user_abort(1); // ибо нефиг
         @set_time_limit(0); // ибо нефиг, again
 
-        do{
+        do {
             if(trim(basename($this->opt['file']))=='') {
-                if (dirname($this->opt['file'])=='') $this->opt['file']='./';
-                $this->opt['file'].='db-'.$this->opt['base'].'-' . date('Ymd') . '.sql';
+                $this->opt['file']=$this->directory(sprintf('db-%s-%s.sql',$this->opt['base'],date('Ymd')));
             }
             $handle = $this->open($this->opt['file'],'w');
             if(!$handle)

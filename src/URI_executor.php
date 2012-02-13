@@ -13,9 +13,10 @@
 /**
  * function to show a progress with plain html style.
  * Just send 4096 commented spaces for shure it been displayed
- * @param $name
- * @param $cur
- * @param $total
+ * @param $val
+ * @internal param $name
+ * @internal param $val
+ * @internal param $total
  */
 function progress(&$val){
     static $progress="<%=point('progress_html','html2js');%>";
@@ -27,26 +28,6 @@ function progress(&$val){
     printf('<script type="text/javascript">progress(%s);</script><!--'.str_pad(' ',4096).'-->',
         json_encode($val)
     );
-}
-
-function select_files($s=''){
-    if(empty($_GET['file']))
-        $file='';
-    else if(is_dir($_GET['file']))
-        $file=rtrim($_GET['file'],' \/');
-    else
-        $file=trim(dirname($_GET['file']));
-    if(!empty($file))
-        $file.='/';
-    if(!empty($s)) return $file.$s;
-    $a=array();
-    foreach(glob($file."{*.sql,*.sql.gz,*.sql.bz2}",GLOB_BRACE) as $v){
-        $a[]=basename($v);
-    }
-    if(empty($a))
-        return '';
-    else
-        return '<select size="6" name="files"><option>'.implode('</option><option>',$a).'</option></select>';
 }
 
 /**
@@ -84,7 +65,7 @@ try{
                         'method'=>'sql','sql'=>&$_POST['sql'],'code'=>'utf8'));
                     $backup->restore();
                 } else if (!empty($_POST['files'])) {
-                    $backup->options('file',select_files($_POST['files']));
+                    $backup->options('file',$backup->directory($_POST['files']));
                     $backup->restore();
                 }
             } else if('backup'==$_POST['type']){
@@ -100,10 +81,15 @@ try{
             exit;
         }
         header('Content-type: text/html ; charset=utf-8');
-        /*if(empty($_GET['file'])) $file='';
-        else $file=trim(dirname($_GET['file']));
-        if(!empty($file)) $file.='/';*/
-        $filenames=select_files();
+        $a=array();
+        foreach(glob($backup->directory."{*.sql,*.sql.gz,*.sql.bz2}",GLOB_BRACE) as $v){
+            $a[]=basename($v);
+        }
+        if(empty($a))
+            $filenames= '';
+        else
+            $filenames= '<select size="6" name="files"><option>'.implode('</option><option>',$a).'</option></select>';
+
         echo "<%=point('main_html','html2js');%>";
     }
 } catch (BackupException $e) {

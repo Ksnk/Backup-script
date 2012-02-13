@@ -52,6 +52,10 @@ class BACKUP {
     /** @var string - sql|sql.gz - метод работы с файлами */
     private $method = 'file';
 
+    /**
+     * Внутренняя отладочная функция. Имеет содержимое только для некоторых вариатнов сборки.
+     * @param $message
+     */
     private function log($message){
       /*<% if ($target!='allinone') { echo $target %>*/
         static $x;
@@ -62,7 +66,7 @@ class BACKUP {
     }
 
     /**
-     *
+     * внутренняя функция вывод прогресса операции.
      * @param $name
      * @param bool $call
      * @return mixed
@@ -79,6 +83,22 @@ class BACKUP {
             call_user_func($this->opt['progress'],&$param);
             $starttime=microtime(true);
         }
+    }
+
+    /**
+     * построить имя файла с помощью каталога из параметра opt['files']
+     * @param $name
+     */
+    public function directory($name=''){
+        if(empty($this->opt['file']))
+            $file='';
+        else if(is_dir($this->opt['file']))
+            $file=rtrim($this->opt['file'],' \/');
+        else
+            $file=trim(dirname($this->opt['file']));
+        if(!empty($file))
+            $file.='/';
+        return $file.$name;
     }
 
     /**
@@ -186,6 +206,12 @@ class BACKUP {
         }
     }
 
+    /**
+     * заменитель write - поддержка счетчика записанных байтов.
+     * @param $handle
+     * @param $str
+     * @return int
+     */
     function write($handle,$str){
         if(!empty($this->fltr)){
             hash_update($this->hctx, $str);
@@ -194,6 +220,7 @@ class BACKUP {
         return fwrite($handle,&$str);
     }
     /**
+     * заменитель close
      * @param resource $handle
      */
     function close($handle){
@@ -322,10 +349,9 @@ class BACKUP {
         @ignore_user_abort(1); // ибо нефиг
         @set_time_limit(0); // ибо нефиг, again
 
-        do{
+        do {
             if(trim(basename($this->opt['file']))=='') {
-                if (dirname($this->opt['file'])=='') $this->opt['file']='./';
-                $this->opt['file'].='db-'.$this->opt['base'].'-' . date('Ymd') . '.sql';
+                $this->opt['file']=$this->directory(sprintf('db-%s-%s.sql',$this->opt['base'],date('Ymd')));
             }
             $handle = $this->open($this->opt['file'],'w');
             if(!$handle)

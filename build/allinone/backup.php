@@ -2,7 +2,7 @@
 /**
  * ----------------------------------------------------------------------------
  * $Id: Make sql-backup and restore from backup for mysql databases, sergekoriakin@gmail.com,
- * ver: 1.0, Last build: 20120213 0226
+ * ver: 1.0, Last build: 20120214 0029
  * GIT: https://github.com/Ksnk/Backup-script$
  * ----------------------------------------------------------------------------
  * License GNU/LGPL - Serge Koriakin - Jule 2010-2012
@@ -19,9 +19,10 @@
 /**
  * function to show a progress with plain html style.
  * Just send 4096 commented spaces for shure it been displayed
- * @param $name
- * @param $cur
- * @param $total
+ * @param $val
+ * @internal param $name
+ * @internal param $val
+ * @internal param $total
  */
 function progress(&$val){
     static $progress="<!DOCTYPE html> <html> <head><title>Backup utility</title> <meta http-equiv=\"content-type\" content=\"text/html; charset=utf-8\"> <script type=\"text/javascript\"> function progress(o) { var progress = ''; if (o.val + '' === o.val) { var x = document.getElementById('log'); x.insertBefore(document.createElement('br'), x.firstChild); x.insertBefore(document.createTextNode(o.name + ' ' + o.val), x.firstChild); } else { progress = o.name + ' ' + (100 * o.val / o.total) + '%'; } document.getElementById('progress').innerHTML = progress; } </script> </head> <body> <div id=\"progress\"></div> <div id=\"log\">.</div> </body> </html>";
@@ -33,26 +34,6 @@ function progress(&$val){
     printf('<script type="text/javascript">progress(%s);</script><!--'.str_pad(' ',4096).'-->',
         json_encode($val)
     );
-}
-
-function select_files($s=''){
-    if(empty($_GET['file']))
-        $file='';
-    else if(is_dir($_GET['file']))
-        $file=rtrim($_GET['file'],' \/');
-    else
-        $file=trim(dirname($_GET['file']));
-    if(!empty($file))
-        $file.='/';
-    if(!empty($s)) return $file.$s;
-    $a=array();
-    foreach(glob($file."{*.sql,*.sql.gz,*.sql.bz2}",GLOB_BRACE) as $v){
-        $a[]=basename($v);
-    }
-    if(empty($a))
-        return '';
-    else
-        return '<select size="6" name="files"><option>'.implode('</option><option>',$a).'</option></select>';
 }
 
 /**
@@ -90,7 +71,7 @@ try{
                         'method'=>'sql','sql'=>&$_POST['sql'],'code'=>'utf8'));
                     $backup->restore();
                 } else if (!empty($_POST['files'])) {
-                    $backup->options('file',select_files($_POST['files']));
+                    $backup->options('file',$backup->directory($_POST['files']));
                     $backup->restore();
                 }
             } else if('backup'==$_POST['type']){
@@ -106,10 +87,15 @@ try{
             exit;
         }
         header('Content-type: text/html ; charset=utf-8');
-        /*if(empty($_GET['file'])) $file='';
-        else $file=trim(dirname($_GET['file']));
-        if(!empty($file)) $file.='/';*/
-        $filenames=select_files();
+        $a=array();
+        foreach(glob($backup->directory."{*.sql,*.sql.gz,*.sql.bz2}",GLOB_BRACE) as $v){
+            $a[]=basename($v);
+        }
+        if(empty($a))
+            $filenames= '';
+        else
+            $filenames= '<select size="6" name="files"><option>'.implode('</option><option>',$a).'</option></select>';
+
         echo "<!DOCTYPE html> <html> <head><title>Mysql Backup utility</title> <meta http-equiv=\"content-type\" content=\"text/html; charset=utf-8\"> <style type=\"text/css\"> table td { vertical-align: top; } textarea, select { min-width: 100px; } iframe { width: 100%; } </style> </head> <body> <form target=\"myframe\" method='post' action='' enctype=\"multipart/form-data\"> <center> <fieldset> <legend><input type='radio' name='type' value='restore' checked='checked'>restore</legend> <table> <tr> <td> <input type=\"file\" name=\"filename\"></td> <td> <textarea name=\"sql\" rows=\"6\"></textarea></td> <td>$filenames </td> </tr> </table> </fieldset> <fieldset> <legend><input type='radio' name='type' value='backup'>backup</legend> <input type=\"checkbox\" name=\"onthefly\"> - не сохранять дамп на сервере </fieldset> <input type=\"submit\" value=\"do it\"> </center> </form> <iframe name=\"myframe\" id=\"myframe\"></iframe> </body> </html>";
     }
 } catch (BackupException $e) {
@@ -191,6 +177,22 @@ class BACKUP {
             call_user_func($this->opt['progress'],&$param);
             $starttime=microtime(true);
         }
+    }
+
+    /**
+     * построить имя фала с помощью каталога из параметра opt['files']
+     * @param $name
+     */
+    public function directory($name=''){
+        if(empty($this->opt['file']))
+            $file='';
+        else if(is_dir($this->opt['file']))
+            $file=rtrim($this->opt['file'],' \/');
+        else
+            $file=trim(dirname($this->opt['file']));
+        if(!empty($file))
+            $file.='/';
+        return $file.$name;
     }
 
     /**
@@ -281,7 +283,7 @@ class BACKUP {
             return $handle;
         }
         else {
-            if($this->opt['method']=='r' && !is_readable($name)) return FALSE;
+            if($mode=='r' && !is_readable($name)) return FALSE;
             if($this->method=='sql.bz2'){
                 if(function_exists('bzopen'))
                     return bzopen($name, $mode);
@@ -434,10 +436,9 @@ class BACKUP {
         @ignore_user_abort(1); // ибо нефиг
         @set_time_limit(0); // ибо нефиг, again
 
-        do{
+        do {
             if(trim(basename($this->opt['file']))=='') {
-                if (dirname($this->opt['file'])=='') $this->opt['file']='./';
-                $this->opt['file'].='db-'.$this->opt['base'].'-' . date('Ymd') . '.sql';
+                $this->opt['file']=$this->directory(sprintf('db-%s-%s.sql',$this->opt['base'],date('Ymd')));
             }
             $handle = $this->open($this->opt['file'],'w');
             if(!$handle)
