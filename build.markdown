@@ -15,20 +15,19 @@ phing/tasks/ext/preprocessor, чтобы не портить пути в build.x
 
 ## Информация по файлам проекта и их смыслу
 
-build/allinone/backup.php - готовый скрипт бякапа,
-build/cms-plugin/backup.php - только класс и класс exception'ов для вставки в виде отдельного модуля.
-test/* - каталог с данными и тестами на класс
-utils/phing.preprocessor.zip - 4 файла утилиты preprocessor
-src/backup.php - исходник класса BACKUP
-src/BackupException.php - исходник класса BackupException
-src/empty_executor.php - заголовочный файл для сборки "cms-plugin"
-src/URI_executer.php - заголовочный файл для сборки "allinone"
-src/main.html - шаблон главной страницы приложения для портирования их в URI_executer
-src/progress.html - шаблоны страницы выдачи результата для портирования их в URI_executer
-
-build.xml - файл сборки PHING'а
-config.xml - файл конфигурации preprocessor
-readme.markdown - readme? а также исходник первой страницы wiki проекта
+*   build/allinone/backup.php - готовый скрипт бякапа,
+*   build/cms-plugin/backup.php - только класс и класс exception'ов для вставки в виде отдельного модуля.
+*   test/* - каталог с данными и тестами на класс
+*   utils/phing.preprocessor.zip - 4 файла утилиты preprocessor
+*   src/backup.php - исходник класса BACKUP
+*   src/BackupException.php - исходник класса BackupException
+*   src/empty_executor.php - заголовочный файл для сборки "cms-plugin"
+*   src/URI_executer.php - заголовочный файл для сборки "allinone"
+*   src/main.html - шаблон главной страницы приложения для портирования их в URI_executer
+*   src/progress.html - шаблоны страницы выдачи результата для портирования их в URI_executer
+*   build.xml - файл сборки PHING'а
+*   config.xml - файл конфигурации preprocessor
+*   readme.markdown - readme? а также исходник первой страницы wiki проекта
 
 
 
