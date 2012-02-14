@@ -75,4 +75,7 @@ file адресной строки. Каталог из этого параме�
 
 *   форуму [Vingrad](http://forum.vingrad.ru), и всем принявшим участие в обсуждении проекта
 
-*   Персонально [krundez](https://github.com/krundetz) и [solenko](http://forum.vingrad.ru/users/solenko) за неоценимые советы и помощь в доводке
+*   Персонально, за помощь в создании и отладке:
+*       [krundez](https://github.com/krundetz)
+*       [solenko](http://forum.vingrad.ru/users/solenko)
+*       {gold Dragon](http://forum.vingrad.ru/users/Gold%20Dragon)
