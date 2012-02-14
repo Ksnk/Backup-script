@@ -2,7 +2,7 @@
 /**
  * ----------------------------------------------------------------------------
  * $Id: Make sql-backup and restore from backup for mysql databases, sergekoriakin@gmail.com,
- * ver: 1.0, Last build: 20120214 1259
+ * ver: 1.1, Last build: 20120214 1308
  * GIT: https://github.com/Ksnk/Backup-script$
  * ----------------------------------------------------------------------------
  * License GNU/LGPL - Serge Koriakin - Jule 2010-2012
