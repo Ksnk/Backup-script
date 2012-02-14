@@ -56,7 +56,8 @@ class BACKUP {
         /** @var array - hold tables name as result of INCLUDE-EXCLUDE calculations */
         $tables=array()
         /** @var array - hold tables modfication time */
-        ,$times=array();
+        ,$times=array()
+    ;
 
     /** @var bool|\resource */
     private $link = false;
@@ -401,6 +402,8 @@ class BACKUP {
         $repeat_cnt = self::$MAX_REPEAT_BACKUP;
 
         do {
+            /** @var array - ключи, которые нужно вставить после основного дампа */
+            $postDumpKeys=array();
             if(trim(basename($this->opt['file']))=='') {
                 $this->opt['file']=$this->directory(sprintf('db-%s-%s.sql',$this->opt['base'],date('Ymd')));
             }
@@ -433,6 +436,11 @@ class BACKUP {
                 $r=mysql_query('SHOW CREATE TABLE ' . $table);
                 $row2 = mysql_fetch_row($r);
                 if(is_resource($r)) mysql_free_result($r);
+                // обрабатываем CONSTRAINT key
+                while(preg_match('/.*?(,$\s*CONSTRAINT.*?$)/m',$row2[1],$m,PREG_OFFSET_CAPTURE)){
+                    $postDumpKeys[trim($m[1][0],', ')]=$table;
+                    $row2[1]=substr($row2[1],0,$m[1][1]).substr($row2[1],$m[1][1]+strlen($m[1][0]));
+                }
 
                 $this->write($handle,"\n\n" . $row2[1] . ";\n\n");
 
@@ -478,6 +486,11 @@ class BACKUP {
                 }
                 mysql_free_result($result);
                 $this->write($handle,"\n");
+            }
+            if(!empty($postDumpKeys)){
+                foreach( $postDumpKeys as $v=>$k) {
+                    $this->write($handle,sprintf("ALTER table `%s` ADD %s;\n\n",$k,$v));
+                }
             }
             //сохраняем файл
             $this->close($handle);

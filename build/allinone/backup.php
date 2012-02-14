@@ -2,7 +2,7 @@
 /**
  * ----------------------------------------------------------------------------
  * $Id: Make sql-backup and restore from backup for mysql databases, sergekoriakin@gmail.com,
- * ver: 1.1, Last build: 20120214 1518
+ * ver: 1.1, Last build: 20120214 1932
  * GIT: https://github.com/Ksnk/Backup-script$
  * ----------------------------------------------------------------------------
  * License GNU/LGPL - Serge Koriakin - Jule 2010-2012
@@ -40,13 +40,16 @@ function progress(&$val){
  * main execution loop
  */
 try{
-    // to show faster progress, :)
-    $backup=new BACKUP($_GET);
+    // filter input arrays a little to avoid bruteforce attack by using this script.
+    $backup=new BACKUP(array_diff_key(
+        $_GET
+        ,array('user'=>1,'pass'=>1)
+    ));
     $backup->options('progress','progress');
     // $backup->options('onthefly',true);
-    if(!empty($_GET['restore'])) {
+    if(isset($_GET['restore'])) {
         echo $backup->restore()?'':'Fail';
-    } else if(!empty($_GET['backup'])) {
+    } else if(isset($_GET['backup'])) {
         echo $backup->make_backup()?'':'Fail';
     } else {
         if('POST'==$_SERVER['REQUEST_METHOD']){
@@ -160,7 +163,8 @@ class BACKUP {
         /** @var array - hold tables name as result of INCLUDE-EXCLUDE calculations */
         $tables=array()
         /** @var array - hold tables modfication time */
-        ,$times=array();
+        ,$times=array()
+    ;
 
     /** @var bool|\resource */
     private $link = false;
@@ -174,6 +178,7 @@ class BACKUP {
      * @param $message
      */
     private function log($message){
+
     }
 
     /**
@@ -248,7 +253,8 @@ class BACKUP {
      * просто деструктор
      */
     function __destruct(){
-        mysql_close($this->link);
+        if(!empty($this->link))
+            mysql_close($this->link);
     }
 
     /**
@@ -498,6 +504,8 @@ class BACKUP {
         $repeat_cnt = self::$MAX_REPEAT_BACKUP;
 
         do {
+            /** @var array - ключи, которые нужно вставить после основного дампа */
+            $postDumpKeys=array();
             if(trim(basename($this->opt['file']))=='') {
                 $this->opt['file']=$this->directory(sprintf('db-%s-%s.sql',$this->opt['base'],date('Ymd')));
             }
@@ -511,7 +519,7 @@ class BACKUP {
                 ."--\n\n"
                 ,$this->opt['base'],$this->opt['include'],$this->opt['exclude'],date('j M y H:i:s')));
             $retrow=array();
-            $str_len=0;
+
             //Проходим в цикле по всем таблицам и форматируем данные
             foreach ($this->tables as $table)
             {
@@ -530,6 +538,11 @@ class BACKUP {
                 $r=mysql_query('SHOW CREATE TABLE ' . $table);
                 $row2 = mysql_fetch_row($r);
                 if(is_resource($r)) mysql_free_result($r);
+                // обрабатываем CONSTRAINT key
+                while(preg_match('/.*?(,$\s*CONSTRAINT.*?$)/m',$row2[1],$m,PREG_OFFSET_CAPTURE)){
+                    $postDumpKeys[trim($m[1][0],', ')]=$table;
+                    $row2[1]=substr($row2[1],0,$m[1][1]).substr($row2[1],$m[1][1]+strlen($m[1][0]));
+                }
 
                 $this->write($handle,"\n\n" . $row2[1] . ";\n\n");
 
@@ -538,6 +551,7 @@ class BACKUP {
                 $this->progress(array('name'=>$table,'val'=>0,'total'=>$total[$table]));
 
                 $sql_insert_into="INSERT INTO `" . $table . "` VALUES\n  ";
+                $str_len=strlen($sql_insert_into);
                 $sql_glue=",\n  ";
 
                 while ($row = mysql_fetch_row($result))
@@ -556,11 +570,11 @@ class BACKUP {
                     $str='('.implode(', ',$row).')';
                     $str_len+=strlen($str)+1; //+str_len($sql_glue);// вместо 1 не надо, иначе на phpMySqlAdmin не будет похоже
                     // Смысл - хочется выполнять не очень здоровые SQL запросы, если есть возможность.
-                    if($str_len>self::$MAXBUF-strlen($sql_insert_into)){
+                    if($str_len>self::$MAXBUF){
                         $this->write($handle,$sql_insert_into.implode($sql_glue,$retrow).";\n\n");
                         unset($retrow);
                         $retrow=array();
-                        $str_len=strlen($str);
+                        $str_len=strlen($str)+strlen($sql_insert_into);
                     }
                     $retrow[]=$str;
                     unset($row,$str);
@@ -571,10 +585,14 @@ class BACKUP {
                     $this->write($handle,$sql_insert_into.implode($sql_glue,$retrow).";\n\n");
                     unset($retrow);
                     $retrow=array();
-                    $str_len=0;
                 }
                 mysql_free_result($result);
                 $this->write($handle,"\n");
+            }
+            if(!empty($postDumpKeys)){
+                foreach( $postDumpKeys as $v=>$k) {
+                    $this->write($handle,sprintf("ALTER table `%s` ADD %s;\n\n",$k,$v));
+                }
             }
             //сохраняем файл
             $this->close($handle);
