@@ -2,7 +2,7 @@
 /**
  * ----------------------------------------------------------------------------
  * $Id: Make sql-backup and restore from backup for mysql databases, sergekoriakin@gmail.com,
- * ver: 1.1, Last build: 20120214 1308
+ * ver: 1.1, Last build: 20120214 1518
  * GIT: https://github.com/Ksnk/Backup-script$
  * ----------------------------------------------------------------------------
  * License GNU/LGPL - Serge Koriakin - Jule 2010-2012
@@ -50,7 +50,8 @@ class BACKUP {
      * @var int - ограничение на длину одного запроса (нежесткое, как получится, при первой возможности :))
      * Еще и размер буфера для чтения sql файла
      */
-    static private $MAXBUF=32768    ;
+    static private $MAXBUF=50000;//32768    ;
+
     /**
      * @var int - ограничение на количество попыток сделать бякап
      */
@@ -135,7 +136,11 @@ class BACKUP {
     public function __construct($options=array()){
         /* вот так устанавливаются параметры */
         $this->options(&$options);
-        // so let's go
+    }
+
+    private function connect() {
+        if(!empty($this->link)) return ;
+// so let's go
         $this->link = mysql_connect($this->opt['host'], $this->opt['user'], $this->opt['pass']);
         $this->opt['base']=mysql_real_escape_string($this->opt['base']);
         if(!mysql_select_db($this->opt['base'], $this->link)){
@@ -280,6 +285,7 @@ class BACKUP {
             fseek($handle, 0, SEEK_SET);
         }
         $curptr=0;
+        $this->connect();
         $this->progress(array('name'=>'restore','val'=>0,'total'=>$total));
         do{
             $string=fread($handle,self::$MAXBUF);
@@ -364,6 +370,7 @@ class BACKUP {
         }
 
         $total = array(); // время последнего изменения
+        $this->connect();
         $result = mysql_query('SHOW TABLE STATUS FROM `'.$this->opt['base'].'` like "%"');
         if(!$result){
             throw new BackupException('Invalid query: ' . mysql_error() . "\n");

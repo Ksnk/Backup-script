@@ -41,7 +41,8 @@ class BACKUP {
      * @var int - ограничение на длину одного запроса (нежесткое, как получится, при первой возможности :))
      * Еще и размер буфера для чтения sql файла
      */
-    static private $MAXBUF=32768    ;
+    static private $MAXBUF=50000;//32768    ;
+
     /**
      * @var int - ограничение на количество попыток сделать бякап
      */
@@ -74,7 +75,7 @@ class BACKUP {
         $y=memory_get_usage();
         error_log ( date('H:i:s(').($x-$y).') '.$message."\r\n" , 3 , "log.log" );
         $x=$y;
-      /*  <% $s=ob_get_contents();ob_end_clear(); echo(str_replace('log.log',$logfile,$s)); }  %> */
+      /*<% $s=ob_get_contents();ob_end_clean(); echo(str_replace('log.log',addslashes($logfile),$s)); }  %>*/
     }
 
     /**
@@ -132,7 +133,11 @@ class BACKUP {
     public function __construct($options=array()){
         /* вот так устанавливаются параметры */
         $this->options(&$options);
-        // so let's go
+    }
+
+    private function connect() {
+        if(!empty($this->link)) return ;
+// so let's go
         $this->link = mysql_connect($this->opt['host'], $this->opt['user'], $this->opt['pass']);
         $this->opt['base']=mysql_real_escape_string($this->opt['base']);
         if(!mysql_select_db($this->opt['base'], $this->link)){
@@ -145,7 +150,8 @@ class BACKUP {
      * просто деструктор
      */
     function __destruct(){
-        mysql_close($this->link);
+        if(!empty($this->link))
+            mysql_close($this->link);
     }
 
     /**
@@ -277,6 +283,7 @@ class BACKUP {
             fseek($handle, 0, SEEK_SET);
         }
         $curptr=0;
+        $this->connect();
         $this->progress(array('name'=>'restore','val'=>0,'total'=>$total));
         do{
             $string=fread($handle,self::$MAXBUF);
@@ -361,6 +368,7 @@ class BACKUP {
         }
 
         $total = array(); // время последнего изменения
+        $this->connect();
         $result = mysql_query('SHOW TABLE STATUS FROM `'.$this->opt['base'].'` like "%"');
         if(!$result){
             throw new BackupException('Invalid query: ' . mysql_error() . "\n");
@@ -406,7 +414,7 @@ class BACKUP {
                 ."--\n\n"
                 ,$this->opt['base'],$this->opt['include'],$this->opt['exclude'],date('j M y H:i:s')));
             $retrow=array();
-            $str_len=0;
+
             //Проходим в цикле по всем таблицам и форматируем данные
             foreach ($this->tables as $table)
             {
@@ -433,6 +441,7 @@ class BACKUP {
                 $this->progress(array('name'=>$table,'val'=>0,'total'=>$total[$table]));
 
                 $sql_insert_into="INSERT INTO `" . $table . "` VALUES\n  ";
+                $str_len=strlen($sql_insert_into);
                 $sql_glue=",\n  ";
 
                 while ($row = mysql_fetch_row($result))
@@ -451,11 +460,11 @@ class BACKUP {
                     $str='('.implode(', ',$row).')';
                     $str_len+=strlen($str)+1; //+str_len($sql_glue);// вместо 1 не надо, иначе на phpMySqlAdmin не будет похоже
                     // Смысл - хочется выполнять не очень здоровые SQL запросы, если есть возможность.
-                    if($str_len>self::$MAXBUF-strlen($sql_insert_into)){
+                    if($str_len>self::$MAXBUF){
                         $this->write($handle,$sql_insert_into.implode($sql_glue,$retrow).";\n\n");
                         unset($retrow);
                         $retrow=array();
-                        $str_len=strlen($str);
+                        $str_len=strlen($str)+strlen($sql_insert_into);
                     }
                     $retrow[]=$str;
                     unset($row,$str);
@@ -466,7 +475,6 @@ class BACKUP {
                     $this->write($handle,$sql_insert_into.implode($sql_glue,$retrow).";\n\n");
                     unset($retrow);
                     $retrow=array();
-                    $str_len=0;
                 }
                 mysql_free_result($result);
                 $this->write($handle,"\n");

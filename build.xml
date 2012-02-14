@@ -73,6 +73,7 @@ $Id: '.$version.', ver: '.$tags.'
 
         <preprocess  config="config.xml" force='force'>
             <param name="dst" value="${sitedst}"/>
+         <!--   <param name="logfile" value="${sitedst}/log.log"/> -->
             <param name="target" value="allinone"/>
             <param file="svn.prop"/>
         </preprocess>

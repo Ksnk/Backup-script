@@ -85,6 +85,25 @@ class BACKUPTest extends PHPUnit_Extensions_Database_TestCase
         $this->assertTrue(!$this->object->tableChanged());
     }
 
+    public function testWrongCodeTable(){
+
+        $options=array('code'=>'UTF8','file'=>dirname(__FILE__).'\zodiak.phpmyadmin.sql');
+        $this->assertTrue(is_readable($options['file']));
+        $this->object = new BACKUP($this->options);
+        $this->object->options($options);
+
+        $this->object->restore(); // so zodiak table been created
+
+ //       $this->assertTrue(!$this->object->tableChanged());
+        $connection=$this->getConnection();
+
+        $dataSet = new PHPUnit_Extensions_Database_DataSet_QueryDataSet($connection);
+        $dataSet->addTable('Zodiak', 'SELECT * FROM zodiak'); // additional tables
+        $expectedDataSet = $this->createXMLDataSet(dirname(__FILE__)."/Zodiak.xml");
+//todo: что-то другое надо сделать! Наверное...
+        $this->assertNotEquals($expectedDataSet, $dataSet);
+
+    }
     /**
      * So create dataset. Make backup. Clear dataset. Restore from backup and compare
      * @covers BACKUP::restore

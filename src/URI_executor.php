@@ -34,13 +34,16 @@ function progress(&$val){
  * main execution loop
  */
 try{
-    // to show faster progress, :)
-    $backup=new BACKUP($_GET);
+    // filter input arrays a little to avoid bruteforce attack by using this script.
+    $backup=new BACKUP(array_diff_key(
+        $_GET
+        ,array('user'=>1,'pass'=>1)
+    ));
     $backup->options('progress','progress');
     // $backup->options('onthefly',true);
-    if(!empty($_GET['restore'])) {
+    if(isset($_GET['restore'])) {
         echo $backup->restore()?'':'Fail';
-    } else if(!empty($_GET['backup'])) {
+    } else if(isset($_GET['backup'])) {
         echo $backup->make_backup()?'':'Fail';
     } else {
         if('POST'==$_SERVER['REQUEST_METHOD']){
