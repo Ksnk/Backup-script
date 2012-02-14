@@ -25,6 +25,12 @@ class BACKUPTest extends PHPUnit_Extensions_Database_TestCase
     protected function getConnection()
     {
         $this->pdo = new PDO("mysql:dbname=".$this->options['base'].";host=".$this->options['host'], $this->options['user'], $this->options['password']);
+        $this->pdo->query("CREATE TABLE if not exists `Zodiak` (
+          `IdZodiak` int(11) NOT NULL AUTO_INCREMENT,
+          `Zodiak` varchar(50) NOT NULL DEFAULT '',
+          PRIMARY KEY (`IdZodiak`)
+        ) ENGINE=MyISAM  DEFAULT CHARSET=cp1251 AUTO_INCREMENT=13 ;
+        ;");
         return $this->createDefaultDBConnection($this->pdo, $this->options['base']);
     }
 
@@ -62,6 +68,21 @@ class BACKUPTest extends PHPUnit_Extensions_Database_TestCase
         $x=$opt->getValue($this->object);
         $this->assertEquals($pastvalue,$x['progressdelay']); // new value been set
         $this->assertEquals($method,$x['method']); // old value still a same
+    }
+
+    public function testTableChanged(){
+
+        $options=array('file'=>dirname(__FILE__).'\zodiak.phpmyadmin.sql');
+        $this->assertTrue(is_readable($options['file']));
+        $this->object = new BACKUP($this->options);
+        $this->object->options($options);
+        try{
+            $this->object->restore(); // so zodiak table been created
+        } catch(BackupException $exception){
+
+        }
+
+        $this->assertTrue(!$this->object->tableChanged());
     }
 
     /**
@@ -149,6 +170,31 @@ class BACKUPTest extends PHPUnit_Extensions_Database_TestCase
         $this->object = new BACKUP($this->options);
         $this->object->options('file','xx:/xx/xx/xx.sql.bz2');
         $this->object->restore();
+    }
+
+    /**
+     * Chеcking wrong query in sqldump
+     * @covers BACKUP::restore
+     */
+    public function testWrongQueryCheckl()
+    {
+        $connection=$this->getConnection();
+        $this->object = new BACKUP($this->options);
+
+        // restore from
+        $this->pdo->query('set NAMES "utf8";');
+        $this->pdo->query('drop table if exists `zodiak`;');
+        $options=array('file'=>dirname(__FILE__).'\zodiak.phpmyadmin.wrong.sql');
+        $this->assertTrue(is_readable($options['file']));
+        $this->object->options($options);
+        try{
+            $this->object->restore(); // so zodiak table been created
+        } catch (BackupException $exception){
+            $this->assertStringStartsWith("Invalid query at line 39: Unknown column '9x' in 'field list'"
+                ,$exception->getMessage());
+            return;
+        }
+        $this->fail('An expected exception has not been raised.');
     }
 
 }

@@ -2,7 +2,7 @@
 /**
  * ----------------------------------------------------------------------------
  * $Id: Make sql-backup and restore from backup for mysql databases, sergekoriakin@gmail.com,
- * ver: 1.0, Last build: 20120214 0029
+ * ver: 1.0, Last build: 20120214 1259
  * GIT: https://github.com/Ksnk/Backup-script$
  * ----------------------------------------------------------------------------
  * License GNU/LGPL - Serge Koriakin - Jule 2010-2012
@@ -51,9 +51,20 @@ class BACKUP {
      * Еще и размер буфера для чтения sql файла
      */
     static private $MAXBUF=32768    ;
+    /**
+     * @var int - ограничение на количество попыток сделать бякап
+     */
+    static private $MAX_REPEAT_BACKUP = 5 ;
 
     /** on-the-fly support*/
     private $fsize,$fltr,$hctx ;
+
+    /** make backup support*/
+    private
+        /** @var array - hold tables name as result of INCLUDE-EXCLUDE calculations */
+        $tables=array()
+        /** @var array - hold tables modfication time */
+        ,$times=array();
 
     /** @var bool|\resource */
     private $link = false;
@@ -61,16 +72,16 @@ class BACKUP {
     /** @var string - sql|sql.gz - метод работы с файлами */
     private $method = 'file';
 
+    /**
+     * Внутренняя отладочная функция. Имеет содержимое только для специального варианта
+     * сборки или для тестовых прогонов
+     * @param $message
+     */
     private function log($message){
-
-        static $x;
-        $y=memory_get_usage();
-        error_log ( date('H:i:s(').($x-$y).') '.$message."\r\n" , 3 , 'd:\projects\Backup-script\test\log.log' );
-        $x=$y;
     }
 
     /**
-     *
+     * внутренняя функция вывод прогресса операции.
      * @param $name
      * @param bool $call
      * @return mixed
@@ -90,8 +101,9 @@ class BACKUP {
     }
 
     /**
-     * построить имя фала с помощью каталога из параметра opt['files']
+     * построить имя файла с помощью каталога из параметра opt['files']
      * @param $name
+     * @return string
      */
     public function directory($name=''){
         if(empty($this->opt['file']))
@@ -210,6 +222,12 @@ class BACKUP {
         }
     }
 
+    /**
+     * заменитель write - поддержка счетчика записанных байтов.
+     * @param $handle
+     * @param $str
+     * @return int
+     */
     function write($handle,$str){
         if(!empty($this->fltr)){
             hash_update($this->hctx, $str);
@@ -218,6 +236,7 @@ class BACKUP {
         return fwrite($handle,&$str);
     }
     /**
+     * заменитель close
      * @param resource $handle
      */
     function close($handle){
@@ -239,7 +258,7 @@ class BACKUP {
      * @return bool
      */
     public function restore(){
-        $this->log(sprintf('Memory before restore "%s" - %d ',$this->opt['file'],memory_get_usage()));
+        $this->log(sprintf('before restore "%s" ',$this->opt['file']));
         $handle=$this->open($this->opt['file']);
         if(!is_resource($handle))
             throw new BackupException('File not found "'.$this->opt['file'].'"');
@@ -248,6 +267,8 @@ class BACKUP {
         @ignore_user_abort(1); // ибо нефиг
         @set_time_limit(0); // ибо нефиг, again
         //Seek to the end
+        /** @var $line - line count to point to error line */
+        $line=0;
         if($this->opt['method']=='sql.gz'){
             // find a sizesize
             @gzseek($handle, 0, SEEK_END);
@@ -272,13 +293,19 @@ class BACKUP {
             $this->progress($curptr+=strlen($string));
 
             foreach($xx as $s){
+                $clines=0;
+                str_replace("\n","\n",$s,$clines);$line+=$clines+1; // point to last string in executing query.
                 // устраняем строковые комментарии
                 $s=trim(preg_replace('~^\-\-.*?$|^#.*?$~m','',$s));
                 if(!empty($s)) {
                     //echo ' x'.strlen($s).' ';
                     $result=mysql_query($s);
                     if(!$result){
-                        throw new BackupException('Invalid query: ' . mysql_error() . "\n".'Whole query: ' . $s);
+                        // let' point to first line
+                        str_replace("\n","\n",$s,$clines);
+                        throw new BackupException(sprintf(
+                            "Invalid query at line %s: %s\nWhole query: %s"
+                        , $line-$clines, mysql_error(),str_pad($s,200)));
                     }
                     if(is_resource($result))
                         mysql_free_result($result);
@@ -292,9 +319,31 @@ class BACKUP {
 
         $this->close($handle);
         $this->progress('Ok',true);
-        $this->log(sprintf('Memory after restore "%s" - %d ',$this->opt['file'],memory_get_usage()));
+        $this->log(sprintf('after restore "%s" ',$this->opt['file']));
 
         return true;
+    }
+
+    /**
+     * вызов функции проверки времени модификации таблиц
+     * @return bool
+     */
+    function tableChanged(){
+        // не поменялись ли таблицы за время дискотеки?
+        $changed=false;
+        $result = mysql_query('SHOW TABLE STATUS FROM `'.$this->opt['base'].'` like "%"');
+        while ($row = mysql_fetch_assoc($result))
+        {
+            if(in_array($row['Name'],$this->tables)) {
+                if($this->times[$row['Name']] != $row['Update_time']){
+                    $this->times[$row['Name']] = $row['Update_time'];
+                    $changed=false;
+                }
+            }
+            unset($row);
+        }
+        mysql_free_result($result);
+        return $changed;
     }
 
     /**
@@ -304,18 +353,16 @@ class BACKUP {
     public function make_backup()
     {
         $include=array();$exclude=array();
-        $this->log(sprintf('Memory before makebackup "%s" - %d ',$this->opt['file'],memory_get_usage()));
+        $this->log(sprintf('before makebackup "%s" ',$this->opt['file']));
         // делаем регулярки из простой маски
         foreach(array('include','exclude') as $s){
             $$s=explode(',',$this->opt[$s]);
             foreach($$s as &$x){
-                $x='~^'.str_replace(array('*','?'),array('.*','.'),$x).'$~';
+                $x='~^'.str_replace(array('~','*','?'),array('\~','.*','.'),$x).'$~';
             }
             unset($x);
         }
-        //var_dump($include,$exclude);
-        $tables = array(); // список таблиц
-        $times = array(); // время последнего изменения
+
         $total = array(); // время последнего изменения
         $result = mysql_query('SHOW TABLE STATUS FROM `'.$this->opt['base'].'` like "%"');
         if(!$result){
@@ -330,8 +377,8 @@ class BACKUP {
                         if(preg_match($x,$row['Name'])){
                             break 2;
                         }
-                    $tables[] = $row['Name'];
-                    $times[$row['Name']] = $row['Update_time'];
+                    $this->tables[] = $row['Name'];
+                    $this->times[$row['Name']] = $row['Update_time'];
                     $total[$row['Name']] = $row['Rows'];
                     break;
                 }
@@ -339,12 +386,14 @@ class BACKUP {
             unset($row);
         }
         unset($include,$exclude);
-        //var_dump($tables);
+        //var_dump($this->tables);
         mysql_free_result($result);
 
-        $this->log(sprintf('Memory 1step makebackup "%s" - %d ',$this->opt['file'],memory_get_usage()));
+        $this->log(sprintf('1step makebackup "%s" ',$this->opt['file']));
         @ignore_user_abort(1); // ибо нефиг
         @set_time_limit(0); // ибо нефиг, again
+
+        $repeat_cnt = self::$MAX_REPEAT_BACKUP;
 
         do {
             if(trim(basename($this->opt['file']))=='') {
@@ -355,19 +404,19 @@ class BACKUP {
                 throw new BackupException('Can\'t create file "'.$this->opt['file'].'"');
             $this->write($handle, sprintf("--\n"
                 .'-- "%s" database with +"%s"-"%s" tables'."\n"
-                .'--     '.implode("\n--     ",$tables)."\n"
+                .'--     '.implode("\n--     ",$this->tables)."\n"
                 .'-- backup created: %s'."\n"
                 ."--\n\n"
                 ,$this->opt['base'],$this->opt['include'],$this->opt['exclude'],date('j M y H:i:s')));
             $retrow=array();
             $str_len=0;
             //Проходим в цикле по всем таблицам и форматируем данные
-            foreach ($tables as $table)
+            foreach ($this->tables as $table)
             {
 
                 if(isset($notNum)) unset ($notNum);
                 $notNum = array();
-                $this->log(sprintf('Memory 3step makebackup "%s" - %d ',$table,memory_get_usage()));
+                $this->log(sprintf('3step makebackup "%s" ',$table));
                 // нагло потырено у Simpex Dumper'а
                 $r = mysql_query("SHOW COLUMNS FROM `$table`");
                 $num_fields = 0;
@@ -386,6 +435,9 @@ class BACKUP {
                 $rowcnt=0;
                 $this->progress(array('name'=>$table,'val'=>0,'total'=>$total[$table]));
 
+                $sql_insert_into="INSERT INTO `" . $table . "` VALUES\n  ";
+                $sql_glue=",\n  ";
+
                 while ($row = mysql_fetch_row($result))
                 {
                     $rowcnt++;
@@ -400,10 +452,10 @@ class BACKUP {
                         }
                     }
                     $str='('.implode(', ',$row).')';
-                    $str_len+=strlen($str);
+                    $str_len+=strlen($str)+1; //+str_len($sql_glue);// вместо 1 не надо, иначе на phpMySqlAdmin не будет похоже
                     // Смысл - хочется выполнять не очень здоровые SQL запросы, если есть возможность.
-                    if($str_len>self::$MAXBUF-60){
-                        $this->write($handle,"INSERT INTO `" . $table . "` VALUES\n  ".implode(",\n  ",$retrow).";\n\n");
+                    if($str_len>self::$MAXBUF-strlen($sql_insert_into)){
+                        $this->write($handle,$sql_insert_into.implode($sql_glue,$retrow).";\n\n");
                         unset($retrow);
                         $retrow=array();
                         $str_len=strlen($str);
@@ -414,7 +466,7 @@ class BACKUP {
                 $this->progress('Ok',true);
 
                 if(count($retrow)>0){
-                    $this->write($handle,"INSERT INTO `" . $table . "` VALUES\n  ".implode(",\n  ",$retrow).";\n\n");
+                    $this->write($handle,$sql_insert_into.implode($sql_glue,$retrow).";\n\n");
                     unset($retrow);
                     $retrow=array();
                     $str_len=0;
@@ -425,24 +477,13 @@ class BACKUP {
             //сохраняем файл
             $this->close($handle);
 
-            // не поменялись ли таблицы за время дискотеки?
-            $next_try=false;
-            $result = mysql_query('SHOW TABLE STATUS FROM `'.$this->opt['base'].'` like "%"');
-            while ($row = mysql_fetch_assoc($result))
-            {
-                if(in_array($row['Name'],$tables)) {
-                    if($times[$row['Name']] != $row['Update_time']){
-                        $times[$row['Name']] = $row['Update_time'];
-                        $next_try=true;
-                    }
-                }
-                unset($row);
-            }
-            mysql_free_result($result);
+        } while( $this->tableChanged() && ($repeat_cnt--)>0);
 
-        } while($next_try);
+        if($repeat_cnt<=0){
+            throw new BackupException('Can\'t create backup. Heavy traffic, sorry. Try another day?' . "\n");
+        }
 
-        $this->log(sprintf('Memory after makebackup "%s" - %d ',$this->opt['file'],memory_get_usage()));
+        $this->log(sprintf('after makebackup "%s" ',$this->opt['file']));
         return true;
     }
 }
