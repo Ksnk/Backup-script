@@ -216,5 +216,28 @@ class BACKUPTest extends PHPUnit_Extensions_Database_TestCase
         $this->fail('An expected exception has not been raised.');
     }
 
+    /**
+     * Chеcking wrong query in sqldump
+     * @covers BACKUP::restore
+     */
+    public function testForeinKeys()
+    {
+        $connection=$this->getConnection();
+        $this->object = new BACKUP($this->options);
+
+        // restore from
+        $options=array('include'=>'users,articles','file'=>dirname(__FILE__).'\foreinkey.sql');
+        $this->assertTrue(is_readable($options['file']));
+        $this->object->options($options);
+        $this->object->restore(); // должно сработать как надо
+        $this->object->options('file',dirname(__FILE__).'/db-backup-' . date('Ymd') . '.sql.gz');
+        $this->object->make_backup(); // должно сработать как надо
+        $this->object->restore(); // должно сработать как надо
+        //} catch (BackupException $exception){
+        //    $this->fail('An expected exception has not been raised.');
+       //     return;
+       // }
+        $this->assertTrue(true);//fail('An expected exception has not been raised.');
+    }
 }
 ?>
