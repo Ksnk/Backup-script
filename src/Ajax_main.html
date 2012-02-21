@@ -1,0 +1,65 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head><title>Mysql Backup utility</title>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <style type="text/css">
+        html {
+            height: 100%;
+            overflow: auto;
+            margin: 0;
+        }
+        body {
+            min-height: 100%;
+            position: relative;
+            overflow: hidden;
+            background-color: #F0F0F0;
+            margin: 0;
+        }
+        #main {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 580px;
+            text-align: left;
+            cursor: default;
+            margin: -231px 0 0 -292px;
+            padding: 1px;
+        }
+        table td {
+            vertical-align: top;
+        }
+
+        textarea, select {
+            min-width: 100px;
+        }
+
+     </style>
+</head>
+<body>
+<div id="main">
+<form target="myframe" method='post' action='' enctype="multipart/form-data">
+    
+        <fieldset>
+            <legend><input type='radio' name='type' value='restore' checked='checked'>restore</legend>
+            <table>
+                <tr>
+                    <td>
+                        <input type="file" name="filename"></td>
+                    <td>
+                        <textarea name="sql" rows="6"></textarea></td>
+                    <td>$filenames
+                    </td>
+                </tr>
+            </table>
+        </fieldset>
+        <fieldset>
+            <legend><input type='radio' name='type' value='backup'>backup</legend>
+            <input type="checkbox" name="onthefly"> - не сохранять дамп на сервере
+        </fieldset>
+        <input type="submit" value="do it">
+   
+</form>
+</div>
+<iframe name="myframe" style="display:none;" id="myframe"></iframe>
+</body>
+</html>

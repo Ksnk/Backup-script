@@ -2,10 +2,10 @@
 /**
  * ----------------------------------------------------------------------------
  * $Id: Make sql-backup and restore from backup for mysql databases, sergekoriakin@gmail.com,
- * ver: 1.1, Last build: 20120214 1932
+ * ver: 1.1, Last build: 20120221 1859
  * GIT: https://github.com/Ksnk/Backup-script$
  * ----------------------------------------------------------------------------
- * License GNU/LGPL - Serge Koriakin - Jule 2010-2012
+ * MIT license - Serge Koriakin - Jule 2010-2012
  * ----------------------------------------------------------------------------
  */
 
@@ -181,11 +181,15 @@ class BACKUP {
         $this->fsize = 0;
 
         if($this->opt['sql'] && $mode=='r'){
-            $handle=@fopen("php://temp", "w+b");
-            if ($handle === FALSE)
-                throw new BackupException('It\' impossible to use `php://temp`, sorry');
+            $handle=@fopen("php://memory", "w+b");
+            if ($handle === FALSE){
+                $handle=@fopen("php://temp", "w+b");
+                if ($handle === FALSE)
+                    throw new BackupException('It\' impossible to use `php://temp`, sorry');
+            }
+             //memory
             fwrite($handle,preg_replace(
-                '~;\s*(insert|create|delete|drop)~i',";\n\\1",
+                '~;\s*(insert|create|delete|alter|select|set|drop)~i',";\n\\1",
                 $this->opt['sql']
             ));
             fseek($handle,0);
@@ -346,7 +350,7 @@ class BACKUP {
             if(in_array($row['Name'],$this->tables)) {
                 if($this->times[$row['Name']] != $row['Update_time']){
                     $this->times[$row['Name']] = $row['Update_time'];
-                    $changed=false;
+                    $changed=true;
                 }
             }
             unset($row);
@@ -446,7 +450,8 @@ class BACKUP {
                     $row2[1]=substr($row2[1],0,$m[1][1]).substr($row2[1],$m[1][1]+strlen($m[1][0]));
                 }
 
-                $this->write($handle,"\n\n" . $row2[1] . ";\n\n");
+                $this->write($handle,"\n\n" . $row2[1] . ";\n");
+                $this->write($handle,"\n/*!50111 ALTER table `$table` DISABLE KEYS */;\n\n");
 
                 $result = mysql_unbuffered_query('SELECT * FROM `' . $table.'`',$this->link);
                 $rowcnt=0;
@@ -489,7 +494,7 @@ class BACKUP {
                     $retrow=array();
                 }
                 mysql_free_result($result);
-                $this->write($handle,"\n");
+                $this->write($handle,"/*!50111 ALTER table `$table` ENABLE KEYS */;\n");
             }
             if(!empty($postDumpKeys)){
                 foreach( $postDumpKeys as $v=>$k) {
@@ -509,3 +514,35 @@ class BACKUP {
         return true;
     }
 }
+
+/************************************************************************************
+ *
+ * Лицензионное соглашение.
+ * ========================
+ * 
+ *     Copyright (c) 2012 Serge Koriakin <sergekoriakin@gmail.com>
+ * 
+ * Данная  лицензия  разрешает  лицам,  получившим   копию   данного   программного
+ * обеспечения и сопутствующей документации (в дальнейшем  именуемыми  «Программное
+ * Обеспечение»),   безвозмездно   использовать   Программное    Обеспечение    без
+ * ограничений,  включая  неограниченное  право  на   использование,   копирование,
+ * изменение,  добавление,  публикацию,  распространение,  сублицензирование  и/или
+ * продажу  копий  Программного   Обеспечения,   также   как   и   лицам,   которым
+ * предоставляется  данное  Программное  Обеспечение,  при   соблюдении   следующих
+ * условий:
+ * 
+ * Указанное выше уведомление об авторском  праве  и  данные  условия  должны  быть
+ * включены во все копии или значимые части данного Программного Обеспечения.
+ * 
+ * ДАННОЕ  ПPОГPАММНОЕ  ОБЕСПЕЧЕНИЕ  ПPЕДОСТАВЛЯЕТСЯ  «КАК  ЕСТЬ»,  БЕЗ  КАКИХ-ЛИБО
+ * ГАPАНТИЙ, ЯВНО ВЫPАЖЕННЫХ ИЛИ  ПОДPАЗУМЕВАЕМЫХ,  ВКЛЮЧАЯ,  НО  НЕ  ОГPАНИЧИВАЯСЬ
+ * ГАPАНТИЯМИ ТОВАPНОЙ ПPИГОДНОСТИ, СООТВЕТСТВИЯ ПО ЕГО  КОНКPЕТНОМУ  НАЗНАЧЕНИЮ  И
+ * ОТСУТСТВИЯ НАPУШЕНИЙ ПPАВ. НИ В  КАКОМ  СЛУЧАЕ  АВТОPЫ  ИЛИ  ПPАВООБЛАДАТЕЛИ  НЕ
+ * НЕСУТ  ОТВЕТСТВЕННОСТИ  ПО  ИСКАМ  О  ВОЗМЕЩЕНИИ  УЩЕPБА,  УБЫТКОВ  ИЛИ   ДPУГИХ
+ * ТPЕБОВАНИЙ ПО ДЕЙСТВУЮЩИМ КОНТPАКТАМ, ДЕЛИКТАМ ИЛИ ИНОМУ, ВОЗНИКШИМ ИЗ,  ИМЕЮЩИМ
+ * ПPИЧИНОЙ  ИЛИ  СВЯЗАННЫМ   С   ПPОГPАММНЫМ   ОБЕСПЕЧЕНИЕМ   ИЛИ   ИСПОЛЬЗОВАНИЕМ
+ * ПPОГPАММНОГО ОБЕСПЕЧЕНИЯ ИЛИ ИНЫМИ ДЕЙСТВИЯМИ С ПPОГPАММНЫМ ОБЕСПЕЧЕНИЕМ.
+ * 
+ *
+ ***********************************************************************************
+ */

@@ -31,6 +31,7 @@ class BACKUPTest extends PHPUnit_Extensions_Database_TestCase
           PRIMARY KEY (`IdZodiak`)
         ) ENGINE=MyISAM  DEFAULT CHARSET=cp1251 AUTO_INCREMENT=13 ;
         ;");
+        $this->pdo->query("set NAMES utf8;");
         return $this->createDefaultDBConnection($this->pdo, $this->options['base']);
     }
 
@@ -72,22 +73,44 @@ class BACKUPTest extends PHPUnit_Extensions_Database_TestCase
 
     public function testTableChanged(){
 
-        $options=array('file'=>dirname(__FILE__).'\zodiak.phpmyadmin.sql');
+        $options=array('include'=>'Zodiak','file'=>dirname(__FILE__).'\zodiak.phpmyadmin.sql');
         $this->assertTrue(is_readable($options['file']));
         $this->object = new BACKUP($this->options);
         $this->object->options($options);
+        $this->object->restore();
         try{
-            $this->object->restore(); // so zodiak table been created
+            $this->object->make_backup(); // so zodiak table been created
         } catch(BackupException $exception){
 
         }
-
+        sleep(3); // so update time is changed;
+        // so thentables is not changed
         $this->assertTrue(!$this->object->tableChanged());
+        $this->pdo->query("update `Zodiak` set `Zodiak`='nothing' where `IdZodiak`=12");
+        // so thentables is changed
+        $this->assertTrue($this->object->tableChanged());
+        // so thentables is not changed
+        $this->assertTrue(!$this->object->tableChanged());
+    }
+
+    public function testRestoreFromSql(){
+        // a little sql!
+        $sql=file_get_contents(dirname(__FILE__).'\zodiak.phpmyadmin.sql') ;
+        $options=array('sql'=>$sql);
+        $this->object = new BACKUP($this->options);
+        $this->object->options($options);
+        $this->object->restore();
+        $connection=$this->getConnection();
+        $dataSet = new PHPUnit_Extensions_Database_DataSet_QueryDataSet($connection);
+        $dataSet->addTable('Zodiak', 'SELECT * FROM zodiak'); // additional tables
+        $expectedDataSet = $this->createXMLDataSet(dirname(__FILE__)."/Zodiak.xml");
+        $this->assertDataSetsEqual($expectedDataSet, $dataSet);
+
     }
 
     public function testWrongCodeTable(){
 
-        $options=array('code'=>'UTF8','file'=>dirname(__FILE__).'\zodiak.phpmyadmin.sql');
+        $options=array('code'=>'UFT8','file'=>dirname(__FILE__).'\zodiak.phpmyadmin.sql');
         $this->assertTrue(is_readable($options['file']));
         $this->object = new BACKUP($this->options);
         $this->object->options($options);
@@ -115,9 +138,9 @@ class BACKUPTest extends PHPUnit_Extensions_Database_TestCase
         $connection=$this->getConnection();
         $this->object = new BACKUP($this->options);
 
-        // restore from
-        $this->pdo->query('set NAMES "utf8";');
+        // truly drop database
         $this->pdo->query('drop table if exists `zodiak`;');
+        // restore from
         $options=array('file'=>dirname(__FILE__).'\zodiak.phpmyadmin.sql');
         $this->assertTrue(is_readable($options['file']));
         $this->object->options($options);
@@ -197,12 +220,9 @@ class BACKUPTest extends PHPUnit_Extensions_Database_TestCase
      */
     public function testWrongQueryCheckl()
     {
-        $connection=$this->getConnection();
         $this->object = new BACKUP($this->options);
 
         // restore from
-        $this->pdo->query('set NAMES "utf8";');
-        $this->pdo->query('drop table if exists `zodiak`;');
         $options=array('file'=>dirname(__FILE__).'\zodiak.phpmyadmin.wrong.sql');
         $this->assertTrue(is_readable($options['file']));
         $this->object->options($options);

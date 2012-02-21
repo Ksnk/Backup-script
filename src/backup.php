@@ -177,11 +177,15 @@ class BACKUP {
         $this->fsize = 0;
 
         if($this->opt['sql'] && $mode=='r'){
-            $handle=@fopen("php://temp", "w+b");
-            if ($handle === FALSE)
-                throw new BackupException('It\' impossible to use `php://temp`, sorry');
+            $handle=@fopen("php://memory", "w+b");
+            if ($handle === FALSE){
+                $handle=@fopen("php://temp", "w+b");
+                if ($handle === FALSE)
+                    throw new BackupException('It\' impossible to use `php://temp`, sorry');
+            }
+             //memory
             fwrite($handle,preg_replace(
-                '~;\s*(insert|create|delete|drop)~i',";\n\\1",
+                '~;\s*(insert|create|delete|alter|select|set|drop)~i',";\n\\1",
                 $this->opt['sql']
             ));
             fseek($handle,0);
@@ -342,7 +346,7 @@ class BACKUP {
             if(in_array($row['Name'],$this->tables)) {
                 if($this->times[$row['Name']] != $row['Update_time']){
                     $this->times[$row['Name']] = $row['Update_time'];
-                    $changed=false;
+                    $changed=true;
                 }
             }
             unset($row);
@@ -442,7 +446,8 @@ class BACKUP {
                     $row2[1]=substr($row2[1],0,$m[1][1]).substr($row2[1],$m[1][1]+strlen($m[1][0]));
                 }
 
-                $this->write($handle,"\n\n" . $row2[1] . ";\n\n");
+                $this->write($handle,"\n\n" . $row2[1] . ";\n");
+                $this->write($handle,"\n/*!50111 ALTER table `$table` DISABLE KEYS */;\n\n");
 
                 $result = mysql_unbuffered_query('SELECT * FROM `' . $table.'`',$this->link);
                 $rowcnt=0;
@@ -485,7 +490,7 @@ class BACKUP {
                     $retrow=array();
                 }
                 mysql_free_result($result);
-                $this->write($handle,"\n");
+                $this->write($handle,"/*!50111 ALTER table `$table` ENABLE KEYS */;\n");
             }
             if(!empty($postDumpKeys)){
                 foreach( $postDumpKeys as $v=>$k) {
@@ -505,3 +510,15 @@ class BACKUP {
         return true;
     }
 }
+
+/************************************************************************************
+ *
+ * <% if($target!='allinone')
+    POINT::file('license','mit.licence.ru.txt');
+ else
+   POINT::inline('license','# License agreement
+
+follow <http://www.gnu.org/copyleft/lesser.html> to see a complete text of license');
+     echo POINT::get('license','markdown-txt|comment') ;
+%> ***********************************************************************************
+ */

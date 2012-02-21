@@ -62,9 +62,10 @@ $Id: '.$version.', ver: '.$tags.'
         <property file="svn.prop" />
 
         <preprocess  config="config.xml" force='force'>
+            <param file="svn.prop"/>
+            <param name="license" value="MIT license - Serge Koriakin - Jule 2010-2012"/>
             <param name="dst" value="build/cms-plugin"/>
             <param name="executor" value="empty_executor"/>
-            <param file="svn.prop"/>
         </preprocess>
     </target>
 
