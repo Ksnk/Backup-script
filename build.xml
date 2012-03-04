@@ -12,104 +12,55 @@
 
     <!-- so let's go -->
     <target name="property">
-        <gittag repository="."
-            list="true"
-            outputProperty="tags"
-            pattern="v_*" />
-        <php expression="preg_replace('/.*?\nv_/m','',trim('${tags}'))" returnProperty="tags"/>
-
-        <echo file="svn.prop" append="false"><![CDATA[
-version=Make sql-backup and restore from backup for mysql databases, sergekoriakin@gmail.com
-license=License GNU/LGPL - Serge Koriakin - Jule 2010-2012
-env_common=${common}
-tags=${tags}
-last_build=${DSTAMP} ${TSTAMP}
-git_url=https://github.com/Ksnk/Backup-script
-lasttarget=${target}
-]]>        </echo>
     </target>
 
     <target name="build.allinone" depends="property" description="build allinone part">
-        <property file="svn.prop" />
 
         <preprocess  config="config.xml" force='force'>
             <param name="dst" value="build/allinone"/>
             <param name="target" value="allinone"/>
-            <param file="svn.prop"/>
 
-            <param name="executor" default="URI_executor"/>
+            <param name="executor" default="URI/URI_executor"/>
 
-            <files>
-                <echo>
-                <![CDATA[<%  $buildtime=date('ymdHi'); point_start('hat');echo
-'----------------------------------------------------------------------------
-$Id: '.$version.', ver: '.$tags.'
- Last build: '.$last_build.'
- GIT: '.$git_url.'$
-----------------------------------------------------------------------------
-'.$license.'
-----------------------------------------------------------------------------'; point_finish() ;%>]]>
-                </echo>
+        </preprocess>
+    </target>
 
-                <file>src/$executor.php</file>
+    <target name="build.Ajax.allinone" depends="property" description="build allinone part">
 
-                <file dstdir="$dst"  dir="src">backup.php</file>
-            </files>
+        <preprocess  config="config.xml" force='force'>
+            <param name="dst" value="build/allinone.Ajax"/>
+            <param name="target" value="allinone"/>
+            <param name="executor" value="Ajax/Ajax_executor"/>
+
         </preprocess>
     </target>
 
     <target name="build.plugin" depends="property" description="build plugin part">
-        <property file="svn.prop" />
 
         <preprocess  config="config.xml" force='force'>
-            <param file="svn.prop"/>
-            <param name="license" value="MIT license - Serge Koriakin - Jule 2010-2012"/>
+            <param name="target" value="cms-plugin"/>
             <param name="dst" value="build/cms-plugin"/>
-            <param name="executor" value="empty_executor"/>
+            <param name="executor" value="empty/empty_executor"/>
         </preprocess>
     </target>
 
-    <target name="build.debug.allinone" depends="property" description="build allinone part to check at server">
-        <property file="svn.prop" />
+    <target name="build.debug.allinone" depends="build.Ajax.allinone,property" description="build allinone part to check at server">
 
         <preprocess  config="config.xml" force='force'>
             <param name="dst" value="${sitedst}"/>
          <!--   <param name="logfile" value="${sitedst}/log.log"/> -->
             <param name="target" value="allinone"/>
-            <param file="svn.prop"/>
+            <param name="executor" value="Ajax/Ajax_executor"/>
         </preprocess>
     </target>
 
-    <target name="build.all" depends="property,build.plugin,build.allinone" description="build all"/>
+    <target name="build.all" depends="build.plugin,build.allinone" description="build all"/>
 
-    <target name='test'>
-    <exec
-            command="git describe --tags"
-            checkreturn="true"
-            logoutput="true"
-    />
+    <target name="browser" depends="build.debug.allinone" description="run test">
+        <exec
+            command="start http://localhost/rights/backup.php"
+            checkreturn="false"
+            logoutput="false"/>
     </target>
-    <!-- Cleanup repository-->
-    <target name='test2'>
-    <gitgc
-        repository="."
-        aggressive="true"
-        prune="1.week.ago" />
-    </target>
-    <target name="test3">
-        <gitlog
-            paths="."
-            format="oneline"
-            maxCount="2"
-            stat="true"
-            noMerges="false"
-            outputProperty="logs"
-            repository="." />
-        <gittag repository="."
-            list="true"
-            outputProperty="tags"
-            pattern="v_*" />
-        <php expression="preg_replace('/.*?\nv_/m','',trim('${tags}'))" returnProperty="tags"/>
-        <echo message="${tags}"/>
-    </target>
-</project>
+
+ </project>

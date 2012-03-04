@@ -7,7 +7,11 @@ define('TESTBASESIZE',30);// 30~ about 3mb sql log, 3000 - 300mb as well
     require_once 'PHPUnit/Extensions/Database/TestCase.php';
     require_once 'GENERATOR.php';
 
-    class BIGTest extends PHPUnit_Extensions_Database_TestCase
+if (!defined('PHPUnit_MAIN_METHOD')) {
+    require 'PHPUnit/Autoload.php' ;
+}
+
+class BIGTest extends PHPUnit_Extensions_Database_TestCase
     {
         /** @var BACKUP */
         protected $object,
@@ -88,5 +92,15 @@ CREATE TABLE `ZodiakX` (
             $this->object->make_backup();
             $this->assertTrue(is_file($name));
         }
+    static function main() {
+
+        $suite = new PHPUnit_Framework_TestSuite( __CLASS__);
+        PHPUnit_TextUI_TestRunner::run( $suite);
     }
+}
+
+if (!defined('PHPUnit_MAIN_METHOD')) {
+    BIGTest::main();
+}
+
 ?>

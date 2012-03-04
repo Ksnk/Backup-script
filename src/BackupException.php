@@ -1,6 +1,6 @@
 <?php
 
-/*<% point_start('execute'); %>*/
+/*<% POINT::start('execute'); %>*/
 /**
  * Exception для определенности - будет тикать в случае ошибки
  */

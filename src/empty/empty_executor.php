@@ -2,4 +2,4 @@
 /**
  * Empty executor part to include into PLAUGIN build section
  */
-/*<% point_start('execute'); point_finish('execute'); %>/**/
+/*<% POINT::start('execute'); POINT::finish('execute'); %>/**/

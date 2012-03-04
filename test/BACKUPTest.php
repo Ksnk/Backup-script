@@ -84,12 +84,12 @@ class BACKUPTest extends PHPUnit_Extensions_Database_TestCase
 
         }
         sleep(3); // so update time is changed;
-        // so thentables is not changed
+        // so thetables is not changed
         $this->assertTrue(!$this->object->tableChanged());
         $this->pdo->query("update `Zodiak` set `Zodiak`='nothing' where `IdZodiak`=12");
-        // so thentables is changed
+        // so thetables is changed
         $this->assertTrue($this->object->tableChanged());
-        // so thentables is not changed
+        // so thetables is not changed
         $this->assertTrue(!$this->object->tableChanged());
     }
 

@@ -1,11 +1,12 @@
 <?php
 /**
  * ----------------------------------------------------------------------------
- * $Id: Make sql-backup and restore from backup for mysql databases, sergekoriakin@gmail.com,
- * ver: 1.1, Last build: 20120221 1859
- * GIT: https://github.com/Ksnk/Backup-script$
+ * $Id: Backup-script. All about sql-dump for MySql databases,
+ * ver: v_1.1-11-g22e32e4, Last build: 
+ * status : draft build.
+ * GIT: origin	https://github.com/Ksnk/Backup-script (push)$
  * ----------------------------------------------------------------------------
- * MIT license - Serge Koriakin - Jule 2010-2012
+ * MIT license - Serge Koriakin - Jule 2010-2012, sergekoriakin@gmail.com
  * ----------------------------------------------------------------------------
  */
 
@@ -28,8 +29,8 @@ class BACKUP {
     private $opt=array(
 // настройка на базу
         'host'=>'localhost', // хост
-        'user'=>'root', // имя-пароль
-        'password'=>'',
+        'user'=>'root1', // имя-пароль
+        'password'=>'xxx',
         'base'=>'tmp',  // имя базы данных
 //  backup-only параметры
         'include'=>'*', // маска в DOS стиле со * и ? . backup-only
@@ -146,7 +147,7 @@ class BACKUP {
         $this->link = mysql_connect($this->opt['host'], $this->opt['user'], $this->opt['pass']);
         $this->opt['base']=mysql_real_escape_string($this->opt['base']);
         if(!mysql_select_db($this->opt['base'], $this->link)){
-            throw new BackupException('Can\'t use `'.$this->opt['base'].'` : ' . mysql_error());
+            throw new BackupException('Can\'t use `'.$this->opt['base'].'` : ' . mysql_error(),mysql_errno());
         };
         mysql_query('set NAMES "'.mysql_real_escape_string($this->opt['code']).'";');
     }
@@ -517,7 +518,7 @@ class BACKUP {
 
 /************************************************************************************
  *
- * Лицензионное соглашение.
+ * cms-pluginЛицензионное соглашение.
  * ========================
  * 
  *     Copyright (c) 2012 Serge Koriakin <sergekoriakin@gmail.com>

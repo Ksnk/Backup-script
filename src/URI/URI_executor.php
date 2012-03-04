@@ -1,9 +1,9 @@
 <?php
 /** @description URI executor for BACKUP-script project */
 /*<% // just a magic
- point_start('progress_html');include('progress.html');point_finish('progress_html');
- point_start('main_html');include('main.html');point_finish('main_html');
- point_start('execute'); %>/**/
+ POINT::file('progress_html','progress.html');
+ POINT::file('main_html','main.html');
+ POINT::start('execute'); %>/**/
 /**
  * This is a first part of ALL-IN-ONE-FILE build of project
  * Main purpose - provide all possible parameters with URI
@@ -21,7 +21,7 @@
 function progress(&$val){
     static $progress="<%=point('progress_html','html2js');%>";
     if(!empty($progress)) {
-        header('Content-type: text/html ; charset=utf-8');
+        header('Content-type:text/html ; charset=UTF-8');
         echo($progress);$progress='';
     }
     if($val['total']==0)$val['total']=1;
@@ -83,7 +83,7 @@ try{
            // header('location:http://'.$_SERVER["HTTP_HOST"].$_SERVER['REQUEST_URI']);
             exit;
         }
-        header('Content-type: text/html ; charset=utf-8');
+        header('Content-type: text/html; charset=UTF-8');
         $a=array();
         foreach(glob($backup->directory."{*.sql,*.sql.gz,*.sql.bz2}",GLOB_BRACE) as $v){
             $a[]=basename($v);

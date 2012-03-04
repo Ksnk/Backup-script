@@ -1,23 +1,43 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <config>
     <var name="executor" default="URI_executor"/>
+    <var name="git" default="git"/>
 
     <files>
         <echo>
-            <![CDATA[<%  $buildtime=date('ymdHi'); point_start('hat');echo
+            <![CDATA[<%
+            $version="Backup-script. All about sql-dump for MySql databases";
+            if($target=="allinone"){
+                $license="License GNU/LGPL - Serge Koriakin - Jule 2010-2012, sergekoriakin@gmail.com";
+            } else {
+                $license="MIT license - Serge Koriakin - Jule 2010-2012, sergekoriakin@gmail.com";
+            }
+            // get a last string from output
+            $tag = exec($git." describe --tags", $output=array());
+            // get a last string from output
+            $git_url = exec($git." remote -v", $output=array());
+            // get all output & filter him
+            $output=array();    exec($git." status -uno -s", $output);
+            $status='';
+            if(""!=(trim($modified=preg_replace("#\n+#","\n",preg_replace('#^.*?build/.*?$#m','',implode("\n",$output)))))){
+                $status="status : draft build.\n";
+            };
+            $GLOBALS['preprocessor']->log(2,'',$git."\n");
+            $buildtime=date('ymdHi'); POINT::inline('hat',
 '----------------------------------------------------------------------------
 $Id: '.$version.',
-ver: '.$tags.', Last build: '.$last_build.'
-GIT: '.$git_url.'$
+ver: '.$tag.', Last build: '.$last_build.'
+'.$status.'GIT: '.$git_url.'$
 ----------------------------------------------------------------------------
 '.$license.'
-----------------------------------------------------------------------------'; point_finish() ;%>]]>
+----------------------------------------------------------------------------') ;%>]]>
         </echo>
 
+        <file>src/formHelper.php</file>
         <file>src/$executor.php</file>
         <file>src/BackupException.php</file>
 
-    	<file dstdir="$dst"  dir="src">backup.php</file>
+        <file dstdir="$dst"  dir="src">backup.php</file>
 	</files>
 
 
