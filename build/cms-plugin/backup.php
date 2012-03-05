@@ -2,7 +2,7 @@
 /**
  * ----------------------------------------------------------------------------
  * $Id: Backup-script. All about sql-dump for MySql databases,
- * ver: v_1.1-11-g22e32e4, Last build: 
+ * ver: v_1.1-12-g0f1ee78, Last build: 
  * status : draft build.
  * GIT: origin	https://github.com/Ksnk/Backup-script (push)$
  * ----------------------------------------------------------------------------
@@ -29,8 +29,8 @@ class BACKUP {
     private $opt=array(
 // настройка на базу
         'host'=>'localhost', // хост
-        'user'=>'root1', // имя-пароль
-        'password'=>'xxx',
+        'user'=>'root', // имя-пароль
+        'password'=>'',
         'base'=>'tmp',  // имя базы данных
 //  backup-only параметры
         'include'=>'*', // маска в DOS стиле со * и ? . backup-only
@@ -149,7 +149,9 @@ class BACKUP {
         if(!mysql_select_db($this->opt['base'], $this->link)){
             throw new BackupException('Can\'t use `'.$this->opt['base'].'` : ' . mysql_error(),mysql_errno());
         };
-        mysql_query('set NAMES "'.mysql_real_escape_string($this->opt['code']).'";');
+        // empty - значит нинада!!!
+        if(!empty($this->opt['code']))
+            mysql_query('set NAMES "'.mysql_real_escape_string($this->opt['code']).'";');
     }
 
     /**
@@ -170,8 +172,10 @@ class BACKUP {
     function open($name,$mode='r'){
         if(preg_match('/\.(sql|sql\.bz2|sql\.gz)$/i', $name, $m))
             $this->method = strtolower($m[1]);
-        if($mode == 'w' && $this->method=='sql') { // forcibly change type to gzip
+        else if (!empty($this->opt['method']))
             $this->method=$this->opt['method'];
+        if($mode == 'w' && $this->method=='sql') { // forcibly change type to gzip
+            //$this->method=$this->opt['method'];
             if(!$this->opt['onthefly']){
                 if ($this->method=='sql.gz')
                     $name.='.gz';
@@ -332,7 +336,7 @@ class BACKUP {
         unset($buf);// очищаем наиболее одиозные хапалки памяти
 
         $this->close($handle);
-        $this->progress('Ok',true);
+
         $this->log(sprintf('after restore "%s" ',$this->opt['file']));
 
         return true;
@@ -518,7 +522,7 @@ class BACKUP {
 
 /************************************************************************************
  *
- * cms-pluginЛицензионное соглашение.
+ * Лицензионное соглашение.
  * ========================
  * 
  *     Copyright (c) 2012 Serge Koriakin <sergekoriakin@gmail.com>

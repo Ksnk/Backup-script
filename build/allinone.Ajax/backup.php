@@ -2,7 +2,7 @@
 /**
  * ----------------------------------------------------------------------------
  * $Id: Backup-script. All about sql-dump for MySql databases,
- * ver: v_1.1-11-g22e32e4, Last build: 20120222 0937
+ * ver: v_1.1-12-g0f1ee78, Last build: 
  * status : draft build.
  * GIT: origin	https://github.com/Ksnk/Backup-script (push)$
  * ----------------------------------------------------------------------------
@@ -63,7 +63,7 @@ function form_helper($html,$opt){
 /**
  * function to show a progress with plain html style.
  * Just send 4096 commented spaces for shure it been displayed
- * @param $val
+ * @param array $val
  * @internal param $name
  * @internal param $val
  * @internal param $total
@@ -120,6 +120,15 @@ try{
         echo $backup->make_backup()?'':'Fail';
     } else {
         if('POST'==$_SERVER['REQUEST_METHOD']){
+            if (isset($_POST['code_1'])){
+                if($_POST['code_1']=='none'){
+                    $opt['code']='';
+                } else {
+                    $opt['code']=$_POST['code_1'];
+                }
+            } else if(""!=trim($_POST['code'])){
+                $opt['code']=trim($_POST['code']);
+            }
             if (isset($_POST['saveatserver'])){
                 foreach(array('user','password','host','base','method') as $x)
                 if($_POST[$x]{0}!='*') {
@@ -144,10 +153,10 @@ try{
                             if(preg_match('/\.(sql|sql\.bz2|sql\.gz)$/i', $f['name'], $m))
                                 $backup->options('method',strtolower($m[1]));
                             else
-                                show(sprintf('File "%s" has unsupported format.',$f['name']),'');
+                                throw new BackupException(sprintf('File "%s" has unsupported format.',$f['name']));
                             break;
                         } else {
-                            show(sprintf('File "%s" unsupported, sorry.',$f['name']),'');
+                            throw new BackupException(sprintf('File "%s" unsupported, sorry.',$f['name']),'');
                         }
                     }
                     if(!empty($uploadedfile)){
@@ -159,6 +168,8 @@ try{
                             'method'=>'sql','sql'=>&$_POST['sql'],'code'=>'utf8'));
                         $backup->restore();
                     } else if (!empty($_POST['files'])) {
+                        show('Restoring database from "'.$backup->directory($_POST['files']).'"','');
+
                         $backup->options('file',$backup->directory($_POST['files']));
                         $backup->restore();
                     }
@@ -193,7 +204,7 @@ try{
         else
             $filenames= '<select size="5" name="files"><option>'.implode('</option><option>',$a).'</option></select>';
        // if(!empty($opt['password'])) $opt['password']="********";
-        echo form_helper("<!DOCTYPE html> <html> <head><title>Mysql Backup utility</title> <meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\"><script src=\"https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js\" type=\"text/javascript\"></script><script type=\"text/javascript\">\nfunction log(o) {\nif(!o) return;\nif(typeof(o)=='object'){\nif (o.val + '' === o.val)\no=o.name + ' ' + o.val;\nelse {\ndocument.getElementById('progress').innerHTML= o.name + ' ' + (100 * o.val / o.total) + '%';\nreturn;\n}\n}\nvar x = document.getElementById('log');\nx.insertBefore(document.createElement('br'), x.firstChild);\nx.insertBefore(document.createTextNode(o), x.firstChild);\n}\nfunction show_log(idx){\nvar log=$('#log_place');\nif(idx==1 || (idx==0 && log.css('z-index')==1)) log.css('z-index',3);\nelse if(idx==2 || (idx==0 && log.css('z-index')==3)) log.css('z-index',1);\n}\nfunction _submit(){\nvar a= $('dt.active'),form=$('form','dt.active+dd')[0];\nvar x=false;\nif($('dt.active').attr('id')!='setup'){\nx=$('input',$('#setup+dd')).clone().css('display','none').appendTo(form);\n}\nform.submit();\nshow_log(1);\nif(x) setTimeout(function(){x.remove()},10);\nreturn false;\n}\n$(function(){\njQuery('label.replace').each(function(){ $(this).after($($(this).text()).clone(true).removeAttr('id')).remove()});\nfunction LookAtHash(){\nvar x=$(document.location.hash || '#setup');\nif(x.length>0) setActive(x);\n}\nfunction setActive(x){\nshow_log(2);\n$('dt.active').removeClass('active').next('dd:eq(0)').hide();\nx.addClass('active').next('dd:eq(0)').show();\n}\nLookAtHash();\n$('dt').click(function () {\ndocument.location.hash = this.id;\nsetActive($(this));\n});\n$('form select[name=files]').dblclick(_submit);\n})\n</script><style type=\"text/css\"> html { height: 100%; overflow: auto; margin: 0; } body { height: 100%; position: relative; overflow: hidden; background-color: #fcfcfc; margin: 0; } body, input,textarea, button { font-family: tahoma, arial,serif; font-size:14px; line-height: 1.2em; color: $gray; } dl, dt, fieldset, .round { border-radius: 6px; -webkit-border-radius: 6px; -moz-border-radius: 5px; -khtml-border-radius: 10px; } .shaddow { box-shadow: 1px 2px 4px rgba(0,0,0,0.5); } #main { position: absolute; background: white; z-index:2; left: 50%; top: 50%; width: 280px; text-align: left; cursor: default; margin: -161px 0 0 -150px; padding: 1px; } #log_place { position: absolute; padding:5px 10px; z-index:1; left: 50%; top: 50%; width: 600px; height: 280px; overflow: auto; text-align: left; cursor: default; margin: -161px 0 0 -300px; background:white; opacity: 0.90; filter:alpha(opacity=890); } dl {position:relative; height:235px; width:300px; border: 1px solid $lgray; } dd { position:absolute; display:none; margin: 0;padding:5px 10px; } dt { padding:5px 10px; text-align:center; vertical-align:middle; background: $gray; width:160px; height:60px; border: 1px solid transparent; color: white; } dt.active { background:$red; color: white; } dt.one {top:0px;} dt.two {top:80px;} dt.three {top:160px;} dt.left { position:absolute; left:-190px; } dt.right { position:absolute; right:-190px; } fieldset { width:90%;} fieldset.twicerow label {display:block; float:left; width:50%;} input.half { width:50%} .button, button, #filebutton { position:relative; display:block; margin:5px auto; padding:5px 10px; text-align:center; vertical-align:middle; background: $lgray; width:200px; border: 1px solid transparent; color: $red; } #filebutton input{ width:100%; height:30px; position:absolute; left:0; top:0; opacity: 0; filter:alpha(opacity=0); } select { width:270px; } </style></head><body><div id=\"main\"><dl class=\"shaddow\"><dt id=\"restoreupl\" class=\"shaddow left one\">Restore.<br>Upload dump and execute</dt><dd><form target=\"myframe\" method='post' action='' enctype=\"multipart/form-data\" onsubmit=\"return _submit();\"> <fieldset id=\"code\" class=\"twicerow\"><legend>code</legend> <input type=\"hidden\" name=\"type\" value=\"restore\"> <label> <input type=\"radio\" name=\"code_1\" value=\"auto\"> auto </label> <label> <input type=\"radio\" name=\"code_1\" value=\"none\"> none </label> <label> <input type=\"radio\" name=\"code_1\" value=\"utf-8\"> utf-8 </label> <label> <input type=\"radio\" name=\"code_1\" value=\"cp1251\"> cp1251 </label> <label style=\"width:90%\"> <input class=\"half\" type=\"text\" name=\"code\" onfocus=\"$('input[name=code_1]:checked').removeAttr('checked');\" > other </label> </fieldset><div id=\"filebutton\" class=\"shaddow round\"><input type=\"file\" value=\"dump\" name=\"filename\" onchange=\"return _submit();\"> Upload file</div>Be carefull. Uploading and execution will start automaticatlly after file been selected.<br><label style=\"width:90%\"> <input type=\"checkbox\" name=\"save\"> save file at server </label> </form></dd><dt id=\"restoreclip\" class=\"shaddow left two\">Restore.<br>Paste sql-dump from clipboard</dt><dd><form target=\"myframe\" method='post' action='' enctype=\"multipart/form-data\" onsubmit=\"return _submit();\"> <textarea name=\"sql\" rows=\"12\" style=\"width:270px; height:180px;\"></textarea><br><input type=\"hidden\" name=\"type\" value=\"restore\"> <button id=\"process\" class=\"round shaddow\" onclick=\"return _submit();\">Process</button> </form></dd><dt id=\"restore\" class=\"shaddow left three\">Restore. Select a file at server.</dt><dd><form target=\"myframe\" method='post' action='' enctype=\"multipart/form-data\" onsubmit=\"return _submit();\"> <label class=\"replace\">#code</label> $filenames<br><label class=\"replace\">#process</label> <input type=\"hidden\" name=\"type\" value=\"restore\"> </form></dd><dt id=\"backupld\" class=\"shaddow right one\">Backup.<br>Download file.</dt><dd><form target=\"myframe\" method='post' action='' onsubmit=\"return _submit();\"> <label class=\"replace\">#code</label> <label class=\"replace\">#process</label> <input type=\"hidden\" name=\"type\" value=\"backup\"> </form></dd><dt id=\"backup\" class=\"shaddow right two\">Backup.<br>Save file at server.</dt><dd><form target=\"myframe\" method='post' action=''onsubmit=\"return _submit();\"> <label class=\"replace\">#code</label> <label class=\"replace\">#process</label> <input type=\"hidden\" name=\"type\" value=\"backup\"></form></dd><dt id=\"setup\" class=\"shaddow right three\"><br>Setting</dt><dd><form target=\"myframe\" method='post' action='' onsubmit=\"return _submit();\"> <label> <input type=\"text\" name=\"user\"> - name </label><br><label> <input type=\"password\" name=\"password\"> - password </label><br><label> <input type=\"text\" name=\"base\"> - base name </label><br><label> <input type=\"text\" name=\"host\"> - host </label><br><fieldset><legend>method</legend> <label> <input type=\"radio\" name=\"method\" value=\"sql.gz\"> gzip </label> <label> <input type=\"radio\" name=\"method\" value=\"sql\"> sql </label> <label> <input type=\"radio\" name=\"method\" value=\"sql.bz2\"> bz2 </label> </fieldset> <label style=\"display:block;\"> <input class=\"button round shaddow\" type=\"submit\" name=\"saveatserver\" value=\"Save at server\"><br></label> </form></dd></dl></div><iframe name=\"myframe\" style=\"display:none;\" src=\"javascript:void(0)\" id=\"myframe\"></iframe><div id=\"log_place\" class=\"round shaddow\" onclick=\"show_log(0)\"><div id=\"progress\" style=\"position:absolute;top:0;left:0; \"></div><div id=\"log\" style=\"margin-top:20px;\"></div></div></body></html>"
+        echo form_helper("<!DOCTYPE html> <html> <head><title>Mysql Backup utility</title> <meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\"><script src=\"https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js\" type=\"text/javascript\"></script><script type=\"text/javascript\">\nfunction log(o) {\nif(!o) return;\nif(typeof(o)=='object'){\nif (o.val + '' === o.val)\no=o.name + ' ' + o.val;\nelse {\ndocument.getElementById('progress').innerHTML= o.name + ' ' + (100 * o.val / o.total) + '%';\nreturn;\n}\n}\nvar x = document.getElementById('log');\ndocument.getElementById('progress').innerHTML='';\nx.insertBefore(document.createElement('br'), x.firstChild);\nx.insertBefore(document.createTextNode(o), x.firstChild);\n}\nfunction show_log(idx){\nvar log=$('#log_place');\nif(idx==1 || (idx==0 && log.css('z-index')==1)) log.css('z-index',3);\nelse if(idx==2 || (idx==0 && log.css('z-index')==3)) log.css('z-index',1);\n}\nfunction _submit(){\nvar a= $('dt.active'),form=$('form','dt.active+dd')[0];\nvar x=false;\nif($('dt.active').attr('id')!='setup'){\nx=$('input',$('#setup+dd')).clone().css('display','none').appendTo(form);\n}\nform.submit();\nshow_log(1);\nif(x) setTimeout(function(){x.remove()},10);\nreturn false;\n}\n$(function(){\njQuery('label.replace').each(function(){ $(this).after($($(this).text()).clone(true).removeAttr('id')).remove()});\nfunction LookAtHash(){\nvar x=$(document.location.hash || '#setup');\nif(x.length>0) setActive(x);\n}\nfunction setActive(x){\nshow_log(2);\n$('dt.active').removeClass('active').next('dd:eq(0)').hide();\nx.addClass('active').next('dd:eq(0)').show();\n}\nLookAtHash();\n$('dt').click(function () {\ndocument.location.hash = this.id;\nsetActive($(this));\n});\n$('form select[name=files]').dblclick(_submit);\n})\n</script><style type=\"text/css\"> html { height: 100%; overflow: auto; margin: 0; } body { height: 100%; position: relative; overflow: hidden; background-color: #fcfcfc; margin: 0; } body, input,textarea, button { font-family: tahoma, arial,serif; font-size:14px; line-height: 1.2em; color: $gray; } dl, dt, fieldset, .round { border-radius: 6px; -webkit-border-radius: 6px; -moz-border-radius: 5px; -khtml-border-radius: 10px; } .shaddow { box-shadow: 1px 2px 4px rgba(0,0,0,0.5); } #main { position: absolute; z-index:2; left: 50%; top: 50%; width: 280px; text-align: left; cursor: default; margin: -161px 0 0 -150px; padding: 1px; } #log_place { position: absolute; padding:5px 10px; z-index:1; left: 50%; top: 50%; width: 600px; height: 300px; overflow: auto; text-align: left; cursor: default; margin: -181px 0 0 -300px; background:white; opacity: 0.90; filter:alpha(opacity=90); } dl {position:relative; height:235px; width:300px; background: white; border: 1px solid $lgray; } dd { position:absolute; display:none; margin: 0;padding:5px 10px; } dt { padding:5px 10px; text-align:center; vertical-align:middle; background: $gray; width:160px; height:60px; border: 1px solid transparent; color: white; } dt.active { background:$red; color: white; } dt.one {top:0px;} dt.two {top:80px;} dt.three {top:160px;} dt.left { position:absolute; left:-190px; } dt.right { position:absolute; right:-190px; } fieldset { width:90%;} fieldset.twicerow label {display:block; float:left; width:50%;} input.half { width:50%} .button, button, #filebutton { position:relative; display:block; margin:5px auto; padding:5px 10px; text-align:center; vertical-align:middle; background: $lgray; width:200px; border: 1px solid transparent; color: $red; } #filebutton input{ width:100%; height:30px; position:absolute; left:0; top:0; opacity: 0; filter:alpha(opacity=0); } select { width:270px; } </style></head><body><div id=\"main\"><dl class=\"shaddow\"><dt id=\"restoreupl\" class=\"shaddow left one\">Restore.<br>Upload dump and execute</dt><dd><form target=\"myframe\" method='post' action='' enctype=\"multipart/form-data\" onsubmit=\"return _submit();\"> <fieldset id=\"code\" class=\"twicerow\"><legend>code</legend> <input type=\"hidden\" name=\"type\" value=\"restore\"> <label> <input type=\"radio\" name=\"code_1\" value=\"auto\"> auto </label> <label> <input type=\"radio\" name=\"code_1\" value=\"none\"> none </label> <label> <input type=\"radio\" name=\"code_1\" value=\"utf-8\"> utf-8 </label> <label> <input type=\"radio\" name=\"code_1\" value=\"cp1251\"> cp1251 </label> <label style=\"width:90%\"> <input class=\"half\" type=\"text\" name=\"code\" onfocus=\"$('input[name=code_1]:checked').removeAttr('checked');\" > other </label> </fieldset><div id=\"filebutton\" class=\"shaddow round\"><input type=\"file\" value=\"dump\" name=\"filename\" onchange=\"return _submit();\"> Upload file</div>Be carefull. Uploading and execution will start automaticatlly after file been selected.<br><label style=\"width:90%\"> <input type=\"checkbox\" name=\"save\"> save file at server </label> </form></dd><dt id=\"restoreclip\" class=\"shaddow left two\">Restore.<br>Paste sql-dump from clipboard</dt><dd><form target=\"myframe\" method='post' action='' enctype=\"multipart/form-data\" onsubmit=\"return _submit();\"> <textarea name=\"sql\" rows=\"12\" style=\"width:270px; height:180px;\"></textarea><br><input type=\"hidden\" name=\"type\" value=\"restore\"> <button id=\"process\" class=\"round shaddow\" onclick=\"return _submit();\">Process</button> </form></dd><dt id=\"restore\" class=\"shaddow left three\">Restore. Select a file from server.</dt><dd><form target=\"myframe\" method='post' action='' enctype=\"multipart/form-data\" onsubmit=\"return _submit();\"> <label class=\"replace\">#code</label> $filenames<br><label class=\"replace\">#process</label> <input type=\"hidden\" name=\"type\" value=\"restore\"> </form></dd><dt id=\"backupld\" class=\"shaddow right one\">Backup.<br>Download file.</dt><dd><form target=\"myframe\" method='post' action='' onsubmit=\"return _submit();\"> <label class=\"replace\">#code</label> <label class=\"replace\">#process</label> <input type=\"hidden\" name=\"onthefly\" value=\"1\"> <input type=\"hidden\" name=\"type\" value=\"backup\"> </form></dd><dt id=\"backup\" class=\"shaddow right two\">Backup.<br>Save file at server.</dt><dd><form target=\"myframe\" method='post' action=''onsubmit=\"return _submit();\"> <label class=\"replace\">#code</label> <label class=\"replace\">#process</label> <input type=\"hidden\" name=\"type\" value=\"backup\"></form></dd><dt id=\"setup\" class=\"shaddow right three\"><br>Setting</dt><dd><form target=\"myframe\" method='post' action='' onsubmit=\"return _submit();\"> <label> <input type=\"text\" name=\"user\"> - name </label><br><label> <input type=\"password\" name=\"password\"> - password </label><br><label> <input type=\"text\" name=\"base\"> - base name </label><br><label> <input type=\"text\" name=\"host\"> - host </label><br><fieldset><legend>method</legend> <label> <input type=\"radio\" name=\"method\" value=\"sql.gz\"> gzip </label> <label> <input type=\"radio\" name=\"method\" value=\"sql\"> sql </label> <label> <input type=\"radio\" name=\"method\" value=\"sql.bz2\"> bz2 </label> </fieldset> <label style=\"display:block;\"> <input class=\"button round shaddow\" type=\"submit\" name=\"saveatserver\" value=\"Save at server\"><br></label> </form></dd></dl></div><iframe name=\"myframe\" style=\"display:none;\" src=\"javascript:void(0)\" id=\"myframe\"></iframe><div id=\"log_place\" class=\"round shaddow\" onclick=\"show_log(0)\"><div id=\"progress\" style=\"position:absolute;top:0;left:0; \"></div><div id=\"log\" style=\"margin-top:20px;\"></div></div></body></html>"
             ,$opt);
     }
 } catch (BackupException $e) {
@@ -220,8 +231,8 @@ class BACKUP {
     private $opt=array(
 // настройка на базу
         'host'=>'localhost', // хост
-        'user'=>'root1', // имя-пароль
-        'password'=>'xxx',
+        'user'=>'root', // имя-пароль
+        'password'=>'',
         'base'=>'tmp',  // имя базы данных
 //  backup-only параметры
         'include'=>'*', // маска в DOS стиле со * и ? . backup-only
@@ -340,7 +351,9 @@ class BACKUP {
         if(!mysql_select_db($this->opt['base'], $this->link)){
             throw new BackupException('Can\'t use `'.$this->opt['base'].'` : ' . mysql_error(),mysql_errno());
         };
-        mysql_query('set NAMES "'.mysql_real_escape_string($this->opt['code']).'";');
+        // empty - значит нинада!!!
+        if(!empty($this->opt['code']))
+            mysql_query('set NAMES "'.mysql_real_escape_string($this->opt['code']).'";');
     }
 
     /**
@@ -361,8 +374,10 @@ class BACKUP {
     function open($name,$mode='r'){
         if(preg_match('/\.(sql|sql\.bz2|sql\.gz)$/i', $name, $m))
             $this->method = strtolower($m[1]);
-        if($mode == 'w' && $this->method=='sql') { // forcibly change type to gzip
+        else if (!empty($this->opt['method']))
             $this->method=$this->opt['method'];
+        if($mode == 'w' && $this->method=='sql') { // forcibly change type to gzip
+            //$this->method=$this->opt['method'];
             if(!$this->opt['onthefly']){
                 if ($this->method=='sql.gz')
                     $name.='.gz';
@@ -523,7 +538,7 @@ class BACKUP {
         unset($buf);// очищаем наиболее одиозные хапалки памяти
 
         $this->close($handle);
-        $this->progress('Ok',true);
+
         $this->log(sprintf('after restore "%s" ',$this->opt['file']));
 
         return true;

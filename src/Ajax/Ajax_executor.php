@@ -16,7 +16,7 @@ define('BACKUP_CONFIG',"backup.config.php");
 /**
  * function to show a progress with plain html style.
  * Just send 4096 commented spaces for shure it been displayed
- * @param $val
+ * @param array $val
  * @internal param $name
  * @internal param $val
  * @internal param $total
@@ -84,6 +84,15 @@ try{
         echo $backup->make_backup()?'':'Fail';
     } else {
         if('POST'==$_SERVER['REQUEST_METHOD']){
+            if (isset($_POST['code_1'])){
+                if($_POST['code_1']=='none'){
+                    $opt['code']='';
+                } else {
+                    $opt['code']=$_POST['code_1'];
+                }
+            } else if(""!=trim($_POST['code'])){
+                $opt['code']=trim($_POST['code']);
+            }
             if (isset($_POST['saveatserver'])){
                 foreach(array('user','password','host','base','method') as $x)
                 if($_POST[$x]{0}!='*') {
@@ -108,10 +117,10 @@ try{
                             if(preg_match('/\.(sql|sql\.bz2|sql\.gz)$/i', $f['name'], $m))
                                 $backup->options('method',strtolower($m[1]));
                             else
-                                show(sprintf('File "%s" has unsupported format.',$f['name']),'');
+                                throw new BackupException(sprintf('File "%s" has unsupported format.',$f['name']));
                             break;
                         } else {
-                            show(sprintf('File "%s" unsupported, sorry.',$f['name']),'');
+                            throw new BackupException(sprintf('File "%s" unsupported, sorry.',$f['name']),'');
                         }
                     }
                     if(!empty($uploadedfile)){
@@ -123,6 +132,8 @@ try{
                             'method'=>'sql','sql'=>&$_POST['sql'],'code'=>'utf8'));
                         $backup->restore();
                     } else if (!empty($_POST['files'])) {
+                        show('Restoring database from "'.$backup->directory($_POST['files']).'"','');
+
                         $backup->options('file',$backup->directory($_POST['files']));
                         $backup->restore();
                     }
