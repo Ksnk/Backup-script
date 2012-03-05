@@ -253,6 +253,15 @@
        	<dd><form target="myframe" method='post' action='' onsubmit="return _submit();">
                <label class="replace">#code</label>
                <label class="replace">#process</label>
+               <div id="inexclude">
+               <label>
+                   <input type="text" name="include"> include tables <br>
+               </label>
+               <label>
+                   <input type="text" name="exclude"> exclude tables <br>
+               </label>
+                   <input type="submit" name="testinclude" class="button round shaddow" value="Test names">
+               </div>
                <input type="hidden" name="onthefly" value="1">
                <input type="hidden" name="type" value="backup">
                </form></dd>
@@ -261,8 +270,9 @@
        	<dd><form target="myframe" method='post' action=''onsubmit="return _submit();">
                <label class="replace">#code</label>
                <label class="replace">#process</label>
+               <label class="replace">#inexclude</label>
                <input type="hidden" name="type" value="backup"></form>
-           </dd>
+        </dd>
 
         <dt id="setup" class="shaddow right three"><br>Setting</dt>
        	<dd><form target="myframe" method='post' action='' onsubmit="return _submit();">

@@ -72,6 +72,8 @@ try{
     $opt=array(
  //        'saveincookie' =>'',
         'method' =>'sql.gz',
+        'include'=>$backup->getOption('include'),
+        'exclude'=>$backup->getOption('exclude'),
     );
     if(is_readable(BACKUP_CONFIG)) {
         $opt=@array_merge($opt,include (BACKUP_CONFIG));
@@ -93,6 +95,11 @@ try{
             } else if(""!=trim($_POST['code'])){
                 $opt['code']=trim($_POST['code']);
             }
+            if(isset($_POST['include']))
+                $backup->options('include',$_POST['include']);
+            if(isset($_POST['exclude']))
+                $backup->options('exclude',$_POST['exclude']);
+
             if (isset($_POST['saveatserver'])){
                 foreach(array('user','password','host','base','method') as $x)
                 if($_POST[$x]{0}!='*') {
@@ -106,8 +113,13 @@ try{
                 }
             }
             try {
-                //var_dump($_POST);var_dump($_FILES);
-                if('restore'==$_POST['type']){
+                if(isset($_POST['testinclude'])){
+                    $total=$backup->getTables();
+                    foreach($total as $k=>$v)
+                        show(sprintf('  `%s` - %d rows',$k,$v),'');
+                    show("Found ".count($total)." tables:",'');
+
+                } else if('restore'==$_POST['type']){
                     // check if file uploaded
                     $uploadedfile='';$file='';
                     if(!empty($_FILES))

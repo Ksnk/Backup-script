@@ -128,6 +128,14 @@ class BACKUP {
             $this->opt[$options]=$val;
     }
     /**
+     * @param string $options
+     * @param string $val
+     * @return array
+     */
+    public function getOption($option){
+        return isset($this->opt[$option])?$this->opt[$option]:null;
+    }
+    /**
      * просто конструктор
      * @param array $options - те параметры, которые отличаются от дефолтных
      */
@@ -266,6 +274,49 @@ class BACKUP {
     }
 
     /**
+     * get tables names matched width include-exclude mask
+     */
+    public function getTables(){
+        $include=array();$exclude=array();
+        // делаем регулярки из простой маски
+        foreach(array('include','exclude') as $s){
+            $$s=explode(',',$this->opt[$s]);
+            foreach($$s as &$x){
+                $x='~^'.str_replace(array('~','*','?'),array('\~','.*','.'),$x).'$~';
+            }
+            unset($x);
+        }
+
+        $total = array(); // время последнего изменения
+        $this->connect();
+        $result = mysql_query('SHOW TABLE STATUS FROM `'.$this->opt['base'].'` like "%"');
+        if(!$result){
+            throw new BackupException('Invalid query: ' . mysql_error() . "\n");
+        }
+        // запоминаем время модификации таблиц и таблицы, подходящие нам по маске
+        while ($row = mysql_fetch_assoc($result))
+        {
+            foreach($include as $i){
+                if(preg_match($i,$row['Name'])){
+                    foreach($exclude as $x)
+                        if(preg_match($x,$row['Name'])){
+                            break 2;
+                        }
+                    $this->tables[] = $row['Name'];
+                    $this->times[$row['Name']] = $row['Update_time'];
+                    $total[$row['Name']] = $row['Rows'];
+                    break;
+                }
+            }
+            unset($row);
+        }
+        unset($include,$exclude);
+        //var_dump($this->tables);
+        mysql_free_result($result);
+        return $total;
+    }
+
+    /**
      * Читаем дамп и выполняем все Sql найденные в нем.
      * @return bool
      */
@@ -279,7 +330,7 @@ class BACKUP {
         @ignore_user_abort(1); // ибо нефиг
         @set_time_limit(0); // ибо нефиг, again
         //Seek to the end
-        /** @var $line - line count to point to error line */
+        /** @var $line - line coudnt to point to error line */
         $line=0;
         if($this->opt['method']=='sql.gz'){
             // find a sizesize
@@ -365,44 +416,8 @@ class BACKUP {
      */
     public function make_backup()
     {
-        $include=array();$exclude=array();
         $this->log(sprintf('before makebackup "%s" ',$this->opt['file']));
-        // делаем регулярки из простой маски
-        foreach(array('include','exclude') as $s){
-            $$s=explode(',',$this->opt[$s]);
-            foreach($$s as &$x){
-                $x='~^'.str_replace(array('~','*','?'),array('\~','.*','.'),$x).'$~';
-            }
-            unset($x);
-        }
-
-        $total = array(); // время последнего изменения
-        $this->connect();
-        $result = mysql_query('SHOW TABLE STATUS FROM `'.$this->opt['base'].'` like "%"');
-        if(!$result){
-            throw new BackupException('Invalid query: ' . mysql_error() . "\n");
-        }
-        // запоминаем время модификации таблиц и таблицы, подходящие нам по маске
-        while ($row = mysql_fetch_assoc($result))
-        {
-            foreach($include as $i){
-                if(preg_match($i,$row['Name'])){
-                    foreach($exclude as $x)
-                        if(preg_match($x,$row['Name'])){
-                            break 2;
-                        }
-                    $this->tables[] = $row['Name'];
-                    $this->times[$row['Name']] = $row['Update_time'];
-                    $total[$row['Name']] = $row['Rows'];
-                    break;
-                }
-            }
-            unset($row);
-        }
-        unset($include,$exclude);
-        //var_dump($this->tables);
-        mysql_free_result($result);
-
+        $total=$this->getTables();
         $this->log(sprintf('1step makebackup "%s" ',$this->opt['file']));
         @ignore_user_abort(1); // ибо нефиг
         @set_time_limit(0); // ибо нефиг, again

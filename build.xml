@@ -3,18 +3,9 @@
 <project name="darts" default="build.allinone">
     <taskdef name="preprocess" classname="phing.tasks.ext.preprocessor.preprocessTask" />
 
-    <!-- Sets the DSTAMP, TSTAMP and TODAY properties -->
     <tstamp/>
-    <!--<property file="../env.prop" />-->
 
-    <!-- настройка проекта на место -->
-    <property name="sitedst" value="z:/home/localhost/www/rights"/>
-
-    <!-- so let's go -->
-    <target name="property">
-    </target>
-
-    <target name="build.allinone" depends="property" description="build allinone part">
+     <target name="build.allinone"  description="build allinone part">
 
         <preprocess  config="config.xml" force='force'>
             <param name="dst" value="build/allinone"/>
@@ -25,7 +16,7 @@
         </preprocess>
     </target>
 
-    <target name="build.Ajax.allinone" depends="property" description="build allinone part">
+    <target name="build.Ajax.allinone" description="build allinone part">
 
         <preprocess  config="config.xml" force='force'>
             <param name="dst" value="build/allinone.Ajax"/>
@@ -35,7 +26,7 @@
         </preprocess>
     </target>
 
-    <target name="build.plugin" depends="property" description="build plugin part">
+    <target name="build.plugin"  description="build plugin part">
 
         <preprocess  config="config.xml" force='force'>
             <param name="target" value="cms-plugin"/>
@@ -44,8 +35,7 @@
         </preprocess>
     </target>
 
-    <target name="build.debug.allinone" depends="build.Ajax.allinone,property" description="build allinone part to check at server">
-
+    <target name="build.debug.allinone" depends="build.Ajax.allinone" description="build allinone part to check at server">
         <preprocess  config="config.xml" force='force'>
             <param name="dst" value="${sitedst}"/>
          <!--   <param name="logfile" value="${sitedst}/log.log"/> -->
@@ -54,11 +44,9 @@
         </preprocess>
     </target>
 
-    <target name="build.all" depends="build.plugin,build.allinone" description="build all"/>
-
-    <target name="browser" depends="build.debug.allinone" description="run test">
+    <target name="browser" depends="build.Ajax.allinone" description="run test">
         <exec
-            command="start http://localhost/rights/backup.php"
+            command="start http://localhost/projects/Backup-script/build/allinone.Ajax/backup.php"
             checkreturn="false"
             logoutput="false"/>
     </target>
