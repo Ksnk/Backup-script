@@ -64,7 +64,7 @@ try{
     // filter input arrays a little to avoid bruteforce attack by using this script.
     $backup=new BACKUP(array_diff_key(
         $_GET
-        ,array('user'=>1,'password'=>1)
+        ,array('user'=>1,'pass'=>1)
     ));
     // check if there is an options
     $backup->options('progress','progress');
@@ -77,112 +77,113 @@ try{
     );
     if(is_readable(BACKUP_CONFIG)) {
         $opt=@array_merge($opt,include (BACKUP_CONFIG));
-        $backup->options($opt);
     }
     // $backup->options('onthefly',true);
-    if(isset($_GET['restore'])) {
-        echo $backup->restore()?'':'Fail';
-    } else if(isset($_GET['backup'])) {
-        echo $backup->make_backup()?'':'Fail';
-    } else {
-        if('POST'==$_SERVER['REQUEST_METHOD']){
-            if (isset($_POST['code_1'])){
-                if($_POST['code_1']=='none'){
-                    $opt['code']='';
-                } else {
-                    $opt['code']=$_POST['code_1'];
-                }
-            } else if(""!=trim($_POST['code'])){
-                $opt['code']=trim($_POST['code']);
+    if('POST'==$_SERVER['REQUEST_METHOD']){
+        if (isset($_POST['code_1'])){
+            if($_POST['code_1']=='none'){
+                $opt['code']='';
+            } else {
+                $opt['code']=$_POST['code_1'];
             }
-            if(isset($_POST['include']))
-                $backup->options('include',$_POST['include']);
-            if(isset($_POST['exclude']))
-                $backup->options('exclude',$_POST['exclude']);
-
-            if (isset($_POST['saveatserver'])){
-                foreach(array('user','password','host','base','method') as $x)
-                if($_POST[$x]{0}!='*') {
-                    $opt[$x]=$_POST[$x];
-                }
-                $result=@file_put_contents(BACKUP_CONFIG,'<'.'?php return '.var_export($opt,true).';') ;
-                if($result===false) {
-                    show('Can\'t store configuration!','');
-                } else {
-                    show('configuration stored!','');
-                }
-            }
-            try {
-                if(isset($_POST['testinclude'])){
-                    $total=$backup->getTables();
-                    foreach($total as $k=>$v)
-                        show(sprintf('  `%s` - %d rows',$k,$v),'');
-                    show("Found ".count($total)." tables:",'');
-
-                } else if('restore'==$_POST['type']){
-                    // check if file uploaded
-                    $uploadedfile='';$file='';
-                    if(!empty($_FILES))
-                    foreach($_FILES as $f){
-                        if(is_readable($f['tmp_name'])){
-                            $uploadedfile=$f['tmp_name'];
-                            if(preg_match('/\.(sql|sql\.bz2|sql\.gz)$/i', $f['name'], $m))
-                                $backup->options('method',strtolower($m[1]));
-                            else
-                                throw new BackupException(sprintf('File "%s" has unsupported format.',$f['name']));
-                            break;
-                        } else {
-                            throw new BackupException(sprintf('File "%s" unsupported, sorry.',$f['name']),'');
-                        }
-                    }
-                    if(!empty($uploadedfile)){
-                        $backup->options('file',$uploadedfile);
-                        show('File uploaded "'.basename($f['name']).'" ','')  ;
-                        $backup->restore();
-                    } else if (!empty($_POST['sql'])) {
-                        $backup->options(array(
-                            'method'=>'sql','sql'=>&$_POST['sql'],'code'=>'utf8'));
-                        $backup->restore();
-                    } else if (!empty($_POST['files'])) {
-                        show('Restoring database from "'.$backup->directory($_POST['files']).'"','');
-
-                        $backup->options('file',$backup->directory($_POST['files']));
-                        $backup->restore();
-                    }
-                   // show(print_r($_POST,true)."\n".print_r($_FILES,true));
-                    show('Restoring complete','');
-                } else if('backup'==$_POST['type']){
-                    //var_dump($_POST);var_dump($_FILES);
-                    if(!empty($_POST['onthefly'])){
-                        $backup->options('onthefly',true);
-                    }
-                    $backup->make_backup();
-                } else {
-                    //show(print_r($_POST,true));
-
-                }
-            } catch (BackupException $e) {
-                    if($e->getCode()==1045 ) {
-                        show('Access denied. Check setting!','')  ;
-                    } else
-                        show($e->getMessage(),'');
-            }
-            show();
-            exit;
+        } else if(""!=trim($_POST['code'])){
+            $opt['code']=trim($_POST['code']);
         }
-        header('Content-type: text/html; charset=UTF-8');
-        $a=array();
-        foreach(glob($backup->directory."{*.sql,*.sql.gz,*.sql.bz2}",GLOB_BRACE) as $v){
-            $a[]=basename($v);
+        if(isset($_POST['include']))
+            $backup->options('include',$_POST['include']);
+        if(isset($_POST['exclude']))
+            $backup->options('exclude',$_POST['exclude']);
+
+        foreach(array('user','pass','host','base','method') as $x)
+            if($_POST[$x]{0}!='*') {
+                $opt[$x]=$_POST[$x];
+            }
+        if (isset($_POST['saveatserver'])){
+
+            $result=@file_put_contents(BACKUP_CONFIG,'<'.'?php return '.var_export($opt,true).';') ;
+            if($result===false) {
+                show('Can\'t store configuration!','');
+            } else {
+                show('configuration stored!','');
+            }
         }
-        if(empty($a))
-            $filenames= '';
-        else
-            $filenames= '<select size="5" name="files"><option>'.implode('</option><option>',$a).'</option></select>';
-       // if(!empty($opt['password'])) $opt['password']="********";
-        echo form_helper("<%=point('main_html','html2js');%>"
-            ,$opt);
+        $backup->options($opt);
+        try {
+            if(isset($_POST['testinclude'])){
+                $total=$backup->getTables();
+                foreach($total as $k=>$v)
+                    show(sprintf('  `%s` - %d rows',$k,$v),'');
+                show("Found ".count($total)." tables:",'');
+
+            } else if('restore'==$_POST['type']){
+                // check if file uploaded
+                $uploadedfile='';$file='';
+                if(!empty($_FILES))
+                foreach($_FILES as $f){
+                    if(is_readable($f['tmp_name'])){
+                        $uploadedfile=$f['tmp_name'];
+                        if(preg_match('/\.(sql|sql\.bz2|sql\.gz)$/i', $f['name'], $m))
+                            $backup->options('method',strtolower($m[1]));
+                        else
+                            throw new BackupException(sprintf('File "%s" has unsupported format.',$f['name']));
+                        break;
+                    } else {
+                        throw new BackupException(sprintf('File "%s" unsupported, sorry.',$f['name']),'');
+                    }
+                }
+                if(!empty($uploadedfile)){
+                    $backup->options('file',$uploadedfile);
+                    show('File uploaded "'.basename($f['name']).'" ','')  ;
+                    $backup->restore();
+                } else if (!empty($_POST['sql'])) {
+                    $backup->options(array(
+                        'method'=>'sql','sql'=>&$_POST['sql'],'code'=>'utf8'));
+                    $backup->restore();
+                } else if (!empty($_POST['files'])) {
+                    show('Restoring database from "'.$backup->directory($_POST['files']).'"','');
+
+                    $backup->options('file',$backup->directory($_POST['files']));
+                    $backup->restore();
+                }
+               // show(print_r($_POST,true)."\n".print_r($_FILES,true));
+                show('Restoring complete','');
+            } else if('backup'==$_POST['type']){
+                //var_dump($_POST);var_dump($_FILES);
+                if(!empty($_POST['onthefly'])){
+                    $backup->options('onthefly',true);
+                }
+                $backup->make_backup();
+            } else {
+                //show(print_r($_POST,true));
+
+            }
+        } catch (BackupException $e) {
+                if($e->getCode()==1045 ) {
+                    show('Access denied. Check setting!'
+                        .$backup->getOption('pass').'|'
+                            .$backup->getOption('user').'|'
+                            .$backup->getOption('base').'|'
+                            .$backup->getOption('host').'|'
+                        ,'')  ;
+                } else
+                    show($e->getMessage(),'');
+        }
+        show();
+        exit;
     }
+    header('Content-type: text/html; charset=UTF-8');
+    $a=array();
+    foreach(glob($backup->directory."{*.sql,*.sql.gz,*.sql.bz2}",GLOB_BRACE) as $v){
+        $a[]=basename($v);
+    }
+    if(empty($a))
+        $filenames= '';
+    else
+        $filenames= '<select size="5" name="files"><option>'.implode('</option><option>',$a).'</option></select>';
+   // if(!empty($opt['pass'])) $opt['pass']="********";
+    echo form_helper("<%=point('main_html','html2js');%>"
+        ,$opt);
+
 } catch (BackupException $e) {
     show($e->getMessage());
 }

@@ -20,7 +20,7 @@ class BACKUP {
 // настройка на базу
         'host'=>'localhost', // хост
         'user'=>'root', // имя-пароль
-        'password'=>'',
+        'pass'=>'',
         'base'=>'tmp',  // имя базы данных
 //  backup-only параметры
         'include'=>'*', // маска в DOS стиле со * и ? . backup-only
@@ -146,7 +146,7 @@ class BACKUP {
 
     private function connect() {
         if(!empty($this->link)) return ;
-// so let's go
+        echo $this->opt['host'].' '.$this->opt['user'].' '.$this->opt['pass'];
         $this->link = mysql_connect($this->opt['host'], $this->opt['user'], $this->opt['pass']);
         $this->opt['base']=mysql_real_escape_string($this->opt['base']);
         if(!mysql_select_db($this->opt['base'], $this->link)){

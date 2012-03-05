@@ -16,7 +16,7 @@ class BACKUPTest extends PHPUnit_Extensions_Database_TestCase
         $options=array(
         'host'=>'localhost',
         'user'=>'root',
-        'password'=>'',
+        'pass'=>'',
         'base'=>'test',
     );
     /** @var PDO */
@@ -24,7 +24,7 @@ class BACKUPTest extends PHPUnit_Extensions_Database_TestCase
 
     protected function getConnection()
     {
-        $this->pdo = new PDO("mysql:dbname=".$this->options['base'].";host=".$this->options['host'], $this->options['user'], $this->options['password']);
+        $this->pdo = new PDO("mysql:dbname=".$this->options['base'].";host=".$this->options['host'], $this->options['user'], $this->options['pass']);
         $this->pdo->query("CREATE TABLE if not exists `Zodiak` (
           `IdZodiak` int(11) NOT NULL AUTO_INCREMENT,
           `Zodiak` varchar(50) NOT NULL DEFAULT '',

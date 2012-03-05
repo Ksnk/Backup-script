@@ -30,7 +30,7 @@ class BACKUP {
 // настройка на базу
         'host'=>'localhost', // хост
         'user'=>'root1', // имя-пароль
-        'password'=>'xxx',
+        'pass'=>'xxx',
         'base'=>'tmp',  // имя базы данных
 //  backup-only параметры
         'include'=>'*', // маска в DOS стиле со * и ? . backup-only

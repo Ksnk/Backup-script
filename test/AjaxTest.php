@@ -28,7 +28,7 @@ class AjaxTest extends PHPUnit_Framework_TestCase
                <input type="text" name="user" value="root">   - name
             </label> <br>
             <label>
-               <input type="password" name="password" value="111"> - password
+               <input type="password" name="pass" value="111"> - password
             </label> <br>
             <label>
                <input type="text" name="base" value="tmp">  - base name
@@ -62,7 +62,7 @@ RESULT;
                <input type="text" name="user">   - name
             </label> <br>
             <label>
-               <input type="password" name="password"> - password
+               <input type="password" name="pass"> - password
             </label> <br>
             <label>
                <input type="text" name="base">  - base name
@@ -90,7 +90,7 @@ HTML;
                 'saveatserver' => '',
                 'method' => 'sql.bz2',
                 'user' => 'root',
-                'password' => '111',
+                'pass' => '111',
                 'host' => 'localhost',
                 'base' => 'tmp',
                 'xxx'=>123
