@@ -2,8 +2,7 @@
 /**
  * ----------------------------------------------------------------------------
  * $Id: Backup-script. All about sql-dump for MySql databases,
- * ver: v_1.1-11-g22e32e4, Last build: 20120222 0937
- * status : draft build.
+ * ver: v1.2-1-gce022ce, Last build: 
  * GIT: origin	https://github.com/Ksnk/Backup-script (push)$
  * ----------------------------------------------------------------------------
  * License GNU/LGPL - Serge Koriakin - Jule 2010-2012, sergekoriakin@gmail.com
@@ -29,8 +28,8 @@ class BACKUP {
     private $opt=array(
 // настройка на базу
         'host'=>'localhost', // хост
-        'user'=>'root1', // имя-пароль
-        'pass'=>'xxx',
+        'user'=>'root', // имя-пароль
+        'pass'=>'',
         'base'=>'tmp',  // имя базы данных
 //  backup-only параметры
         'include'=>'*', // маска в DOS стиле со * и ? . backup-only
@@ -133,6 +132,14 @@ class BACKUP {
             $this->opt[$options]=$val;
     }
     /**
+     * @param string $options
+     * @param string $val
+     * @return array
+     */
+    public function getOption($option){
+        return isset($this->opt[$option])?$this->opt[$option]:null;
+    }
+    /**
      * просто конструктор
      * @param array $options - те параметры, которые отличаются от дефолтных
      */
@@ -143,13 +150,15 @@ class BACKUP {
 
     private function connect() {
         if(!empty($this->link)) return ;
-// so let's go
+        echo $this->opt['host'].' '.$this->opt['user'].' '.$this->opt['pass'];
         $this->link = mysql_connect($this->opt['host'], $this->opt['user'], $this->opt['pass']);
         $this->opt['base']=mysql_real_escape_string($this->opt['base']);
         if(!mysql_select_db($this->opt['base'], $this->link)){
             throw new BackupException('Can\'t use `'.$this->opt['base'].'` : ' . mysql_error(),mysql_errno());
         };
-        mysql_query('set NAMES "'.mysql_real_escape_string($this->opt['code']).'";');
+        // empty - значит нинада!!!
+        if(!empty($this->opt['code']))
+            mysql_query('set NAMES "'.mysql_real_escape_string($this->opt['code']).'";');
     }
 
     /**
@@ -170,8 +179,10 @@ class BACKUP {
     function open($name,$mode='r'){
         if(preg_match('/\.(sql|sql\.bz2|sql\.gz)$/i', $name, $m))
             $this->method = strtolower($m[1]);
-        if($mode == 'w' && $this->method=='sql') { // forcibly change type to gzip
+        else if (!empty($this->opt['method']))
             $this->method=$this->opt['method'];
+        if($mode == 'w' && $this->method=='sql') { // forcibly change type to gzip
+            //$this->method=$this->opt['method'];
             if(!$this->opt['onthefly']){
                 if ($this->method=='sql.gz')
                     $name.='.gz';
@@ -267,6 +278,49 @@ class BACKUP {
     }
 
     /**
+     * get tables names matched width include-exclude mask
+     */
+    public function getTables(){
+        $include=array();$exclude=array();
+        // делаем регулярки из простой маски
+        foreach(array('include','exclude') as $s){
+            $$s=explode(',',$this->opt[$s]);
+            foreach($$s as &$x){
+                $x='~^'.str_replace(array('~','*','?'),array('\~','.*','.'),$x).'$~';
+            }
+            unset($x);
+        }
+
+        $total = array(); // время последнего изменения
+        $this->connect();
+        $result = mysql_query('SHOW TABLE STATUS FROM `'.$this->opt['base'].'` like "%"');
+        if(!$result){
+            throw new BackupException('Invalid query: ' . mysql_error() . "\n");
+        }
+        // запоминаем время модификации таблиц и таблицы, подходящие нам по маске
+        while ($row = mysql_fetch_assoc($result))
+        {
+            foreach($include as $i){
+                if(preg_match($i,$row['Name'])){
+                    foreach($exclude as $x)
+                        if(preg_match($x,$row['Name'])){
+                            break 2;
+                        }
+                    $this->tables[] = $row['Name'];
+                    $this->times[$row['Name']] = $row['Update_time'];
+                    $total[$row['Name']] = $row['Rows'];
+                    break;
+                }
+            }
+            unset($row);
+        }
+        unset($include,$exclude);
+        //var_dump($this->tables);
+        mysql_free_result($result);
+        return $total;
+    }
+
+    /**
      * Читаем дамп и выполняем все Sql найденные в нем.
      * @return bool
      */
@@ -280,7 +334,7 @@ class BACKUP {
         @ignore_user_abort(1); // ибо нефиг
         @set_time_limit(0); // ибо нефиг, again
         //Seek to the end
-        /** @var $line - line count to point to error line */
+        /** @var $line - line coudnt to point to error line */
         $line=0;
         if($this->opt['method']=='sql.gz'){
             // find a sizesize
@@ -332,7 +386,7 @@ class BACKUP {
         unset($buf);// очищаем наиболее одиозные хапалки памяти
 
         $this->close($handle);
-        $this->progress('Ok',true);
+
         $this->log(sprintf('after restore "%s" ',$this->opt['file']));
 
         return true;
@@ -366,44 +420,8 @@ class BACKUP {
      */
     public function make_backup()
     {
-        $include=array();$exclude=array();
         $this->log(sprintf('before makebackup "%s" ',$this->opt['file']));
-        // делаем регулярки из простой маски
-        foreach(array('include','exclude') as $s){
-            $$s=explode(',',$this->opt[$s]);
-            foreach($$s as &$x){
-                $x='~^'.str_replace(array('~','*','?'),array('\~','.*','.'),$x).'$~';
-            }
-            unset($x);
-        }
-
-        $total = array(); // время последнего изменения
-        $this->connect();
-        $result = mysql_query('SHOW TABLE STATUS FROM `'.$this->opt['base'].'` like "%"');
-        if(!$result){
-            throw new BackupException('Invalid query: ' . mysql_error() . "\n");
-        }
-        // запоминаем время модификации таблиц и таблицы, подходящие нам по маске
-        while ($row = mysql_fetch_assoc($result))
-        {
-            foreach($include as $i){
-                if(preg_match($i,$row['Name'])){
-                    foreach($exclude as $x)
-                        if(preg_match($x,$row['Name'])){
-                            break 2;
-                        }
-                    $this->tables[] = $row['Name'];
-                    $this->times[$row['Name']] = $row['Update_time'];
-                    $total[$row['Name']] = $row['Rows'];
-                    break;
-                }
-            }
-            unset($row);
-        }
-        unset($include,$exclude);
-        //var_dump($this->tables);
-        mysql_free_result($result);
-
+        $total=$this->getTables();
         $this->log(sprintf('1step makebackup "%s" ',$this->opt['file']));
         @ignore_user_abort(1); // ибо нефиг
         @set_time_limit(0); // ибо нефиг, again

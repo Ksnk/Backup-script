@@ -2,8 +2,7 @@
 /**
  * ----------------------------------------------------------------------------
  * $Id: Backup-script. All about sql-dump for MySql databases,
- * ver: v_1.1-14-g7331f9e, Last build: 
- * status : draft build.
+ * ver: v1.2-1-gce022ce, Last build: 
  * GIT: origin	https://github.com/Ksnk/Backup-script (push)$
  * ----------------------------------------------------------------------------
  * License GNU/LGPL - Serge Koriakin - Jule 2010-2012, sergekoriakin@gmail.com
@@ -368,7 +367,7 @@ class BACKUP {
         if(!empty($this->link)) return ;
         echo $this->opt['host'].' '.$this->opt['user'].' '.$this->opt['pass'];
         $this->link = mysql_connect($this->opt['host'], $this->opt['user'], $this->opt['pass']);
-       // $this->opt['base']=mysql_real_escape_string($this->opt['base']);
+        $this->opt['base']=mysql_real_escape_string($this->opt['base']);
         if(!mysql_select_db($this->opt['base'], $this->link)){
             throw new BackupException('Can\'t use `'.$this->opt['base'].'` : ' . mysql_error(),mysql_errno());
         };
