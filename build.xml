@@ -35,13 +35,18 @@
         </preprocess>
     </target>
 
-    <target name="build.debug.allinone" depends="build.Ajax.allinone" description="build allinone part to check at server">
-        <preprocess  config="config.xml" force='force'>
-            <param name="dst" value="${sitedst}"/>
-         <!--   <param name="logfile" value="${sitedst}/log.log"/> -->
-            <param name="target" value="allinone"/>
-            <param name="executor" value="Ajax/Ajax_executor"/>
-        </preprocess>
+    <target name="update ksnk.github.com" description="copy builded files to ksnk.github folder">
+        <delete file="../ksnk.github.com/backup-script/*.tar.gz"/>
+        <tar destfile="../ksnk.github.com/backup-script/allinone.tar.gz" compression="gzip">
+            <fileset dir="build/allinone.Ajax">
+                <include name="backup.php" />
+            </fileset>
+        </tar>
+        <tar destfile="../ksnk.github.com/backup-script/simpleclass.tar.gz" compression="gzip">
+            <fileset dir="build/cms-plugin">
+                <include name="backup.php" />
+            </fileset>
+        </tar>
     </target>
 
     <target name="browser" depends="build.Ajax.allinone" description="run test">
