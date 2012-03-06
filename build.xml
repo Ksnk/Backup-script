@@ -36,12 +36,13 @@
     </target>
 
     <target name="update ksnk.github.com" description="copy builded files to ksnk.github folder">
-        <delete file="../ksnk.github.com/backup-script/*.tar.gz"/>
+        <delete file="../ksnk.github.com/backup-script/allinone.tar.gz"/>
         <tar destfile="../ksnk.github.com/backup-script/allinone.tar.gz" compression="gzip">
             <fileset dir="build/allinone.Ajax">
                 <include name="backup.php" />
             </fileset>
         </tar>
+        <delete file="../ksnk.github.com/backup-script/simpleclass.tar.gz"/>
         <tar destfile="../ksnk.github.com/backup-script/simpleclass.tar.gz" compression="gzip">
             <fileset dir="build/cms-plugin">
                 <include name="backup.php" />

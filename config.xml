@@ -19,10 +19,10 @@
             // get all output & filter him
             $output=array();    exec($git." status -uno -s", $output);
             $status='';
-            if(""!=(trim($modified=preg_replace("#\n+#","\n",preg_replace('#^.*?build/.*?$#m','',implode("\n",$output)))))){
+            if($modified=preg_match('#src/.*#m',implode("\n",$output))){
                 $status="status : draft build.\n";
             };
-            $GLOBALS['preprocessor']->log(2,'',$git."\n");
+            preprocessor::log(2,'',$git."\n");
             $buildtime=date('ymdHi'); POINT::inline('hat',
 '----------------------------------------------------------------------------
 $Id: '.$version.',
