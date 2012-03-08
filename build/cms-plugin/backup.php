@@ -3,8 +3,7 @@
 /**
  * ----------------------------------------------------------------------------
  * $Id: Backup-script. All about sql-dump for MySql databases,
- * ver: v1.2-8-g7dd5159, Last build: 1203090233
- * status : draft build.
+ * ver: v1.2-9-gfcfdc04, Last build: 1203090235
  * GIT: origin	https://github.com/Ksnk/Backup-script (push)$
  * ----------------------------------------------------------------------------
  * MIT license - Serge Koriakin - Jule 2010-2012, sergekoriakin@gmail.com
