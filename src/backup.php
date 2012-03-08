@@ -202,7 +202,7 @@ class BACKUP {
             }
             //memory
             fwrite($handle, preg_replace(
-                            '~;\s*(insert|create|delete|alter|select|set|drop)~i', ";\n\\1", $this->opt['sql']
+                            '~;\s*(insert|create|delete|add|alter|select|set|drop)~i', ";\n\\1", $this->opt['sql']
                     ));
             fseek($handle, 0);
             return $handle;
@@ -455,7 +455,7 @@ class BACKUP {
                     unset($notNum);
                 $notNum = array();
                 $this->log(sprintf('3step makebackup "%s" ', $table));
-                // нагло потырено у Simpex Dumper'а
+                // нагло потырено у Sipex Dumper'а
                 $r = mysql_query("SHOW COLUMNS FROM `$table`");
                 $num_fields = 0;
                 while ($col = mysql_fetch_array($r)) {

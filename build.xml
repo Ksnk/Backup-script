@@ -30,6 +30,7 @@
 
         <preprocess  config="config.xml" force='force'>
             <param name="target" value="cms-plugin"/>
+            <param name="license" value="MIT license - Serge Koriakin - Jule 2010-2012, sergekoriakin@gmail.com"/>
             <param name="dst" value="build/cms-plugin"/>
             <param name="executor" value="empty/empty_executor"/>
         </preprocess>

@@ -3,7 +3,8 @@
 /**
  * ----------------------------------------------------------------------------
  * $Id: Backup-script. All about sql-dump for MySql databases,
- * ver: v1.2-4-g1302527, Last build: 
+ * ver: v1.2-8-g7dd5159, Last build: 1203090233
+ * status : draft build.
  * GIT: origin	https://github.com/Ksnk/Backup-script (push)$
  * ----------------------------------------------------------------------------
  * MIT license - Serge Koriakin - Jule 2010-2012, sergekoriakin@gmail.com
@@ -13,7 +14,9 @@
 /**
  * Exception для определенности - будет тикать в случае ошибки
  */
-class BackupException extends Exception { }
+class BackupException extends Exception
+{
+}
 
 /**
  * собственно класс бякапа
@@ -206,7 +209,7 @@ class BACKUP {
             }
             //memory
             fwrite($handle, preg_replace(
-                            '~;\s*(insert|create|delete|alter|select|set|drop)~i', ";\n\\1", $this->opt['sql']
+                            '~;\s*(insert|create|delete|add|alter|select|set|drop)~i', ";\n\\1", $this->opt['sql']
                     ));
             fseek($handle, 0);
             return $handle;
@@ -459,7 +462,7 @@ class BACKUP {
                     unset($notNum);
                 $notNum = array();
                 $this->log(sprintf('3step makebackup "%s" ', $table));
-                // нагло потырено у Simpex Dumper'а
+                // нагло потырено у Sipex Dumper'а
                 $r = mysql_query("SHOW COLUMNS FROM `$table`");
                 $num_fields = 0;
                 while ($col = mysql_fetch_array($r)) {

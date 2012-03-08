@@ -25,6 +25,7 @@
     }
 
     /**
+     * показать окно лога по мере необходимости и по запросу юзера
      * idx==0 - toggle
      * idx=1 - show
      * idx=2 - hide
@@ -36,6 +37,11 @@
         else if(idx==2 || (idx==0 && log.css('z-index')==3)) log.css('z-index',1);
     }
 
+    /**
+     * Обработать submit там, где нужно
+     * @return {Boolean}
+     * @private
+     */
     function _submit(){
         var a= $('dt.active'),form=$('form','dt.active+dd')[0];
         var x=false;
@@ -49,22 +55,28 @@
         return false;
     }
 
+    /**
+     * установить активный таб
+     * @param x
+     */
+    function setActive(x){
+        show_log(2);
+        var id= $(x=(x||'#setup')).attr('id');
+        document.location.hash =id && (id!='setup') && id ||'';
+        $('dt.active').removeClass('active').next('dd:eq(0)').hide();
+        $(x).addClass('active').next('dd:eq(0)').show();
+    }
+
     $(function(){
         /* anchor-related navigation */
          jQuery('label.replace').each(function(){ $(this).after($($(this).text()).clone(true).removeAttr('id')).remove()});
         function LookAtHash(){
-            var x=$(document.location.hash || '#setup');
-            if(x.length>0) setActive(x);
+            setActive(document.location.hash);
         }
-        function setActive(x){
-            show_log(2);
-            $('dt.active').removeClass('active').next('dd:eq(0)').hide();
-            x.addClass('active').next('dd:eq(0)').show();
-        }
+
         LookAtHash();
         $('dt').click(function () {
-            document.location.hash = this.id;
-            setActive($(this));
+            setActive(this);
         });
         $('form select[name=files]').dblclick(_submit);
     })
