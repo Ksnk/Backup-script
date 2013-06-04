@@ -13,6 +13,34 @@
 define('BACKUP_CONFIG',"backup.config.php");
 
 /* <%=POINT::get('support_functions')%> */
+if(!function_exists('json_encode')){
+    function json_encode($a)
+    {
+        if (is_null($a)) return 'null';
+        if ($a === false) return 'false';
+        if ($a === true) return 'true';
+        if (is_scalar($a)) {
+            $a = addslashes($a);
+            $a = str_replace("\n", '\n', $a);
+            $a = str_replace("\r", '\r', $a);
+            $a = preg_replace('{(</)(script)}i', "$1\"+\"$2", $a);
+            return "\"$a\"";
+        }
+        $isList = true;
+        for ($i=0, reset($a); $i<count($a); $i++, next($a))
+            if (key($a) !== $i) { $isList = false; break; }
+        $result = array();
+        if ($isList) {
+            foreach ($a as $v) $result[] = php2js($v);
+            return '[ ' . join(', ', $result) . ' ]';
+        } else {
+            foreach ($a as $k=>$v)
+                $result[] = php2js($k) . ': ' . php2js($v);
+            return '{ ' . join(', ', $result) . ' }';
+        }
+    }
+
+}
 /**
  * function to show a progress with plain html style.
  * Just send 4096 commented spaces for shure it been displayed
@@ -80,6 +108,11 @@ try{
     }
     // $backup->options('onthefly',true);
     if('POST'==$_SERVER['REQUEST_METHOD']){
+        $_POST=array_merge( array(
+            'files'=>'',
+            'code'=>'',
+            'type'=>0,
+            ),$_POST);
         if (isset($_POST['code_1'])){
             if($_POST['code_1']=='none'){
                 $opt['code']='';
@@ -89,10 +122,10 @@ try{
         } else if(""!=trim($_POST['code'])){
             $opt['code']=trim($_POST['code']);
         }
-        if(isset($_POST['include']))
-            $backup->options('include',$_POST['include']);
-        if(isset($_POST['exclude']))
-            $backup->options('exclude',$_POST['exclude']);
+        foreach(array('include','exclude','datestr','frompath') as $x)    {
+            if(isset($_POST[$x]) && (""!=trim($_POST[$x])))
+                $backup->options($x,$_POST[$x]);
+        }
 
         foreach(array('user','pass','host','base','method') as $x)
             if($_POST[$x]{0}!='*') {
@@ -109,7 +142,33 @@ try{
         }
         $backup->options($opt);
         try {
-            if(isset($_POST['testinclude'])){
+            if(isset($_POST['testnames'])){  // so test names with tar-gzip
+                $total=$backup->getFiles();
+                foreach($total as $k=>$v)
+                    show(sprintf('found `%s` -> `%s` ',$k,$v),'');
+                show("Found ".count($total)." files:",'');
+            } else if(isset($_POST['zipit'])){
+                //$total=$backup->getFiles();
+                $phar = new PharData('project.tar');
+                $phar->buildFromIterator(
+                    new ArrayIterator(
+                        $backup->getFiles()
+                    ));
+                @unlink ('project.tar.gz');
+                $phar->compress(Phar::GZ,'.tar.gz');
+                unset($phar);
+                @unlink ('project.tar');
+                show("OK!",'');
+            } else if(isset($_POST['unzip'])){
+                $phar = new PharData('project.tar.gz');
+                $path='';
+                if (!empty($_POST['frompath'])) {
+                    $path=$_POST['frompath'];
+                }
+                $phar->extractTo($path);
+                unset($phar);
+                show("OK!",'');
+            } else if(isset($_POST['testinclude'])){
                 $total=$backup->getTables();
                 foreach($total as $k=>$v)
                     show(sprintf('  `%s` - %d rows',$k,$v),'');
@@ -173,7 +232,10 @@ try{
     }
     header('Content-type: text/html; charset=UTF-8');
     $a=array();
-    foreach(glob($backup->directory."{*.sql,*.sql.gz,*.sql.bz2}",GLOB_BRACE) as $v){
+    if(!isset($_POST['files']))$_POST['files']='';
+    $files=glob($backup->directory($_POST['files'])."{*.sql,*.sql.gz,*.sql.bz2}",GLOB_BRACE);
+    if(is_array($files) && count($files)>0)
+    foreach($files as $v){
         $a[]=basename($v);
     }
     if(empty($a))

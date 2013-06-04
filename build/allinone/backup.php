@@ -1,19 +1,22 @@
 <?php
 
 /**
- * ----------------------------------------------------------------------------
+ * ------------------------------------------------------------------------------------------
  * $Id: Backup-script. All about sql-dump for MySql databases,
- * ver: v1.2-4-g1302527, Last build: 
+ * ver: v1.2-10-g27016c7, Last build: 1210271315
+ * status : draft build.
  * GIT: origin	https://github.com/Ksnk/Backup-script (push)$
- * ----------------------------------------------------------------------------
+ * ------------------------------------------------------------------------------------------
  * License GNU/LGPL - Serge Koriakin - Jule 2010-2012, sergekoriakin@gmail.com
- * ----------------------------------------------------------------------------
+ * ------------------------------------------------------------------------------------------
  */
-    			
+
 /**
  * Exception для определенности - будет тикать в случае ошибки
  */
-class BackupException extends Exception { }
+class BackupException extends Exception
+{
+}
 
 /**
  * собственно класс бякапа
@@ -22,7 +25,8 @@ class BackupException extends Exception { }
  * - При создании дампа проверяет время изменения таблиц и в случае изменения - переделывает все заново.
  *   Так что можно не лочить базу - что есть неимоверная польза.
  */
-class BACKUP {
+class BACKUP
+{
 
     /**
      * Параметры класса - можно и нужно допилить по месту напильником
@@ -60,15 +64,14 @@ class BACKUP {
     static private $MAX_REPEAT_BACKUP = 5;
 
     /** on-the-fly support */
-            private $fsize, $fltr, $hctx;
+    private $fsize, $fltr, $hctx;
 
     /** make backup support */
-            private
-            /** @var array - hold tables name as result of INCLUDE-EXCLUDE calculations */
-            $tables = array()
-            /** @var array - hold tables modfication time */
-            , $times = array()
-    ;
+    private
+        /** @var array - hold tables name as result of INCLUDE-EXCLUDE calculations */
+        $tables = array()
+        /** @var array - hold tables modfication time */
+    , $times = array();
 
     /** @var bool|\resource */
     private $link = false;
@@ -81,7 +84,9 @@ class BACKUP {
      * сборки или для тестовых прогонов
      * @param $message
      */
-    private function log($message) {
+    private function log($message)
+    {
+
     }
 
     /**
@@ -90,7 +95,8 @@ class BACKUP {
      * @param bool $call
      * @return mixed
      */
-    private function progress($name, $call = false) {
+    private function progress($name, $call = false)
+    {
         static $starttime, $param = array();
         if (!is_callable($this->opt['progress']))
             return;
@@ -110,7 +116,8 @@ class BACKUP {
      * @param $name
      * @return string
      */
-    public function directory($name = '') {
+    public function directory($name = '')
+    {
         if (empty($this->opt['file']))
             $file = '';
         else if (is_dir($this->opt['file']))
@@ -118,8 +125,89 @@ class BACKUP {
         else
             $file = trim(dirname($this->opt['file']));
         if (!empty($file))
-            $file.='/';
+            $file .= '/';
         return $file . $name;
+    }
+
+    /**
+     * функция рекурсивно строит список файлов, начиная с
+     *   opt[frompath], используя фильтр  datestr
+     *
+     * получается массив localname -> realname, который и выводится наружу
+     */
+
+    public function getFiles()
+    {
+        $result = array();
+        $pastcwd = getcwd();
+        $filter= array(
+            'before' => 0, 'after' => 0, 'include' => null, 'exclude' => null
+        );
+        if (!empty($this->opt['frompath'])) {
+            chdir($this->opt['frompath']);
+        }
+        if (!empty($this->opt['datestr'])) {
+            $time=strtotime($this->opt['datestr']) ;
+            $filter['before']= $time;
+        }
+        $this->readDirReqursive(''
+            , $result, $filter);
+        chdir($pastcwd);
+        return $result;
+    }
+
+    /**
+     * рекурсивное чтение каталога
+     * @param string $dir
+     * @param array $result
+     * @param array $filter
+     *    include - preg's array to check it's possible
+     *    exclude - preg's array to check it's impossible
+     *    after -  filemtime of file after this time
+     *    before - filemtime of file before this time
+     */
+
+    private function readDirReqursive($dir, &$result, $filter)
+    {
+        if ($handle = opendir(empty($dir) ? '.' : $dir)) {
+            while (false !== ($entry = readdir($handle))) {
+                if ($entry != "." && $entry != "..") {
+                    $entry = empty($dir) ? $entry : $dir . '/' . $entry;
+                    $stat = stat($entry);
+                    $mode = $stat['mode'] & 0170000;
+                    if (040000 == $mode) { // it's a directory
+                        $this->readDirReqursive($entry, $result, $filter);
+                    } else if (0100000 == $mode) {
+                        if (0 != $filter['before'] && $stat['mtime'] < $filter['before']) {
+                            continue;
+                        }
+                        if (0 != $filter['after'] && $stat['mtime'] > $filter['after']) {
+                            continue;
+                        }
+                        if (!empty($filter['include'])) {
+                            $possible = false;
+                            foreach ($filter['include'] as $reg) {
+                                if (preg_match($reg, $entry)) {
+                                    $possible = true;
+                                    break;
+                                }
+                            }
+                            if (!$possible) continue;
+                        }
+                        if (!empty($filter['exclude'])) {
+                            foreach ($filter['exclude'] as $reg) {
+                                if (preg_match($reg, $entry)) {
+                                    continue 2;
+                                }
+                            }
+                        }
+
+                        $result[$entry]=realpath($entry);
+                    }
+                }
+            }
+            closedir($handle);
+        }
     }
 
     /**
@@ -127,7 +215,8 @@ class BACKUP {
      * @param string $val
      * @return array
      */
-    public function options($options = '', $val = '') {
+    public function options($options = '', $val = '')
+    {
         if (is_array($options))
             $this->opt = array_merge($this->opt, array_intersect_key($options, $this->opt));
         else
@@ -139,7 +228,8 @@ class BACKUP {
      * @param string $val
      * @return array
      */
-    public function getOption($option) {
+    public function getOption($option)
+    {
         return isset($this->opt[$option]) ? $this->opt[$option] : null;
     }
 
@@ -147,12 +237,14 @@ class BACKUP {
      * просто конструктор
      * @param array $options - те параметры, которые отличаются от дефолтных
      */
-    public function __construct($options = array()) {
+    public function __construct($options = array())
+    {
         /* вот так устанавливаются параметры */
         $this->options(&$options);
     }
 
-    private function connect() {
+    private function connect()
+    {
         if (!empty($this->link))
             return;
         echo $this->opt['host'] . ' ' . $this->opt['user'] . ' ' . $this->opt['pass'];
@@ -160,7 +252,8 @@ class BACKUP {
         $this->opt['base'] = mysql_real_escape_string($this->opt['base']);
         if (!mysql_select_db($this->opt['base'], $this->link)) {
             throw new BackupException('Can\'t use `' . $this->opt['base'] . '` : ' . mysql_error(), mysql_errno());
-        };
+        }
+        ;
         // empty - значит нинада!!!
         if (!empty($this->opt['code']))
             mysql_query('set NAMES "' . mysql_real_escape_string($this->opt['code']) . '";');
@@ -169,7 +262,8 @@ class BACKUP {
     /**
      * просто деструктор
      */
-    function __destruct() {
+    function __destruct()
+    {
         if (!empty($this->link))
             mysql_close($this->link);
     }
@@ -181,7 +275,8 @@ class BACKUP {
      * @param string $mode - режим открытия файла (w|r)
      * @return resource - вертает результат соответствующей операции
      */
-    function open($name, $mode = 'r') {
+    function open($name, $mode = 'r')
+    {
         if (preg_match('/\.(sql|sql\.bz2|sql\.gz)$/i', $name, $m))
             $this->method = strtolower($m[1]);
         else if (!empty($this->opt['method']))
@@ -190,9 +285,9 @@ class BACKUP {
             //$this->method=$this->opt['method'];
             if (!$this->opt['onthefly']) {
                 if ($this->method == 'sql.gz')
-                    $name.='.gz';
+                    $name .= '.gz';
                 else if ($this->method == 'sql.bz2')
-                    $name.='.bz2';
+                    $name .= '.bz2';
             }
         }
         $this->fsize = 0;
@@ -206,12 +301,11 @@ class BACKUP {
             }
             //memory
             fwrite($handle, preg_replace(
-                            '~;\s*(insert|create|delete|alter|select|set|drop)~i', ";\n\\1", $this->opt['sql']
-                    ));
+                '~;\s*(insert|create|delete|add|alter|select|set|drop)~i', ";\n\\1", $this->opt['sql']
+            ));
             fseek($handle, 0);
             return $handle;
-        }
-        else if ($this->opt['onthefly'] && $mode == 'w') { // gzzip on-the-fly without file
+        } else if ($this->opt['onthefly'] && $mode == 'w') { // gzzip on-the-fly without file
             $this->opt['progress'] = ''; // switch off progress  :(
             $handle = @fopen("php://output", "wb");
             if ($handle === FALSE)
@@ -232,8 +326,7 @@ class BACKUP {
             if (!ini_get("safe_mode"))
                 set_time_limit(0);
             return $handle;
-        }
-        else {
+        } else {
             if ($mode == 'r' && !is_readable($name))
                 return FALSE;
             if ($this->method == 'sql.bz2') {
@@ -258,10 +351,11 @@ class BACKUP {
      * @param $str
      * @return int
      */
-    function write($handle, $str) {
+    function write($handle, $str)
+    {
         if (!empty($this->fltr)) {
             hash_update($this->hctx, $str);
-            $this->fsize+=strlen($str);
+            $this->fsize += strlen($str);
         }
         return fwrite($handle, &$str);
     }
@@ -270,7 +364,8 @@ class BACKUP {
      * заменитель close
      * @param resource $handle
      */
-    function close($handle) {
+    function close($handle)
+    {
         if (!empty($this->fltr)) {
             stream_filter_remove($this->fltr);
             $this->fltr = null;
@@ -288,7 +383,8 @@ class BACKUP {
     /**
      * get tables names matched width include-exclude mask
      */
-    public function getTables() {
+    public function getTables()
+    {
         $include = array();
         $exclude = array();
         // делаем регулярки из простой маски
@@ -332,7 +428,8 @@ class BACKUP {
      * Читаем дамп и выполняем все Sql найденные в нем.
      * @return bool
      */
-    public function restore() {
+    public function restore()
+    {
         $this->log(sprintf('before restore "%s" ', $this->opt['file']));
         $handle = $this->open($this->opt['file']);
         if (!is_resource($handle))
@@ -366,14 +463,14 @@ class BACKUP {
             } else {
                 $buf = array_pop($xx);
             }
-            $this->progress($curptr+=strlen($string));
+            $this->progress($curptr += strlen($string));
 
             foreach ($xx as $s) {
                 $clines = 0;
                 str_replace("\n", "\n", $s, $clines);
-                $line+=$clines + 1; // point to last string in executing query.
+                $line += $clines + 1; // point to last string in executing query.
                 // устраняем строковые комментарии
-                $s = trim(preg_replace('~^\-\-.*?$|^#.*?$~m', '', $s));
+                $s = trim(preg_replace('~^\s*\-\-.*?$|^\s*#.*?$~m', '', $s));
                 if (!empty($s)) {
                     //echo ' x'.strlen($s).' ';
                     $result = mysql_query($s);
@@ -381,17 +478,17 @@ class BACKUP {
                         // let' point to first line
                         str_replace("\n", "\n", $s, $clines);
                         throw new BackupException(sprintf(
-                                        "Invalid query at line %s: %s\nWhole query: %s"
-                                        , $line - $clines, mysql_error(), str_pad($s, 200)));
+                            "Invalid query at line %s: %s\nWhole query: %s"
+                            , $line - $clines, mysql_error(), str_pad($s, 200)));
                     }
                     if (is_resource($result))
                         mysql_free_result($result);
                 }
-            };
+            }
+            ;
 
             unset($string, $xx); // очищаем наиболее одиозные хапалки памяти
-        }
-        while ($notlast);
+        } while ($notlast);
         unset($buf); // очищаем наиболее одиозные хапалки памяти
 
         $this->close($handle);
@@ -405,7 +502,8 @@ class BACKUP {
      * вызов функции проверки времени модификации таблиц
      * @return bool
      */
-    function tableChanged() {
+    function tableChanged()
+    {
         // не поменялись ли таблицы за время дискотеки?
         $changed = false;
         $result = mysql_query('SHOW TABLE STATUS FROM `' . $this->opt['base'] . '` like "%"');
@@ -426,7 +524,8 @@ class BACKUP {
      * изготавливаем бякап
      * @return bool
      */
-    public function make_backup() {
+    public function make_backup()
+    {
         $this->log(sprintf('before makebackup "%s" ', $this->opt['file']));
         $total = $this->getTables();
         $this->log(sprintf('1step makebackup "%s" ', $this->opt['file']));
@@ -445,11 +544,11 @@ class BACKUP {
             if (!$handle)
                 throw new BackupException('Can\'t create file "' . $this->opt['file'] . '"');
             $this->write($handle, sprintf("--\n"
-                            . '-- "%s" database with +"%s"-"%s" tables' . "\n"
-                            . '--     ' . implode("\n--     ", $this->tables) . "\n"
-                            . '-- backup created: %s' . "\n"
-                            . "--\n\n"
-                            , $this->opt['base'], $this->opt['include'], $this->opt['exclude'], date('j M y H:i:s')));
+                    . '-- "%s" database with +"%s"-"%s" tables' . "\n"
+                    . '--     ' . implode("\n--     ", $this->tables) . "\n"
+                    . '-- backup created: %s' . "\n"
+                    . "--\n\n"
+                , $this->opt['base'], $this->opt['include'], $this->opt['exclude'], date('j M y H:i:s')));
             $retrow = array();
 
             //Проходим в цикле по всем таблицам и форматируем данные
@@ -459,7 +558,7 @@ class BACKUP {
                     unset($notNum);
                 $notNum = array();
                 $this->log(sprintf('3step makebackup "%s" ', $table));
-                // нагло потырено у Simpex Dumper'а
+                // нагло потырено у Sipex Dumper'а
                 $r = mysql_query("SHOW COLUMNS FROM `$table`");
                 $num_fields = 0;
                 while ($col = mysql_fetch_array($r)) {
@@ -500,7 +599,7 @@ class BACKUP {
                         }
                     }
                     $str = '(' . implode(', ', $row) . ')';
-                    $str_len+=strlen($str) + 1; //+str_len($sql_glue);// вместо 1 не надо, иначе на phpMySqlAdmin не будет похоже
+                    $str_len += strlen($str) + 1; //+str_len($sql_glue);// вместо 1 не надо, иначе на phpMySqlAdmin не будет похоже
                     // Смысл - хочется выполнять не очень здоровые SQL запросы, если есть возможность.
                     if ($str_len > self::$MAXBUF) {
                         $this->write($handle, $sql_insert_into . implode($sql_glue, $retrow) . ";\n\n");

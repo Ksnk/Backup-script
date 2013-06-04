@@ -1,7 +1,7 @@
 --
 -- "test" database with +"Zodiak"-"" tables
 --     Zodiak
--- backup created: 6 Mar 12 14:46:40
+-- backup created: 25 Sep 12 19:53:32
 --
 
 DROP TABLE IF EXISTS `Zodiak`;
