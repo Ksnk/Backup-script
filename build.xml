@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- phing bild file -->
-<project name="darts" default="build.allinone">
+<project name="Backup" default="build.allinone">
     <taskdef name="preprocess" classname="phing.tasks.ext.preprocessor.preprocessTask" />
 
     <tstamp/>

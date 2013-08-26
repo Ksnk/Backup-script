@@ -1,14 +1,14 @@
 <?php
 
 /**
- * ------------------------------------------------------------------------------------------
+ * ----------------------------------------------------------------------------------
  * $Id: Backup-script. All about sql-dump for MySql databases,
- * ver: v1.2-10-g27016c7, Last build: 1306041651
+ * ver: v1.2-11-gc776c70, Last build: 1308262111
  * status : draft build.
  * GIT: origin	https://github.com/Ksnk/Backup-script (push)$
- * ------------------------------------------------------------------------------------------
+ * ----------------------------------------------------------------------------------
  * License GNU/LGPL - Serge Koriakin - Jule 2010-2012, sergekoriakin@gmail.com
- * ------------------------------------------------------------------------------------------
+ * ----------------------------------------------------------------------------------
  */
 /*  --- point::execute --- */
 
@@ -305,112 +305,90 @@ class BackupException extends Exception
 /**
  * собственно класс бякапа
  * - умеет читать писать GZ
- * - умеет читать большие и страшные дампы SypexDumper'а и большие и страшные дампы phpMyAdmin'а
- * - При создании дампа проверяет время изменения таблиц и в случае изменения - переделывает все заново.
+ * - умеет читать большие и страшные дампы SypexDumper'а и
+ *      большие и страшные дампы phpMyAdmin'а
+ * - При создании дампа проверяет время изменения таблиц и
+ *      в случае изменения - переделывает все заново.
  *   Так что можно не лочить базу - что есть неимоверная польза.
  */
 class BACKUP
 {
 
     /**
+     * @var int - ограничение на длину одного запроса (нежесткое, как получится,
+     *          при первой возможности :))
+     * Еще и размер буфера для чтения sql файла
+     */
+    static private $_MAXBUF = 50000; //32768    ;
+    /**
+     * @var int - ограничение на количество попыток сделать бякап
+     */
+    static private $_MAX_REPEAT_BACKUP = 5;
+    /**
      * Параметры класса - можно и нужно допилить по месту напильником
      */
-    private $opt = array(
-// настройка на базу
+    private $_opt = array(
+        // настройка на базу
         'host' => 'localhost', // хост
         'user' => 'root', // имя-пароль
         'pass' => '',
         'base' => 'tmp', // имя базы данных
-//  backup-only параметры
+        //  backup-only параметры
         'include' => '*', // маска в DOS стиле со * и ? . backup-only
         'exclude' => '', // маска в DOS стиле со * и ? . backup-only
         'compress' => 9, // уровень компрессии для gz  . backup-only
         'method' => 'sql.gz', // 'sql.gz'|'sql.bz2'|'sql' - использовать gz или нет
-        'onthefly' => false, // вывод гзипа прямо в броузер. Ошибки, правда, теряются напрочь...
-//  both-way параметры
-        'file' => '', // имя файла SQL-дампа для чтения или каталог (с / на конце) для создания базы
+        'onthefly' => false, // вывод гзипа прямо в броузер. Ошибки, правда, 
+        //теряются напрочь...
+        //  both-way параметры
+        'file' => '', // имя файла SQL-дампа для чтения или каталог (с / на конце) 
+        // для создания базы
         'code' => 'utf8', // set NAMES 'code'
         'progress' => '', // функция для calback'а progress bar'a
-        'progressdelay' => 1, // время между тиками callback прогресс бара [0.5== полсекунды]
-//  restore-only параметры
+        'progressdelay' => 1, // время между тиками callback прогресс бара 
+        // [0.5== полсекунды]
+        //  restore-only параметры
         'sql' => '', // plain sql to execute with backup class.
     );
-
-    /**
-     * @var int - ограничение на длину одного запроса (нежесткое, как получится, при первой возможности :))
-     * Еще и размер буфера для чтения sql файла
-     */
-    static private $MAXBUF = 50000; //32768    ;
-
-    /**
-     * @var int - ограничение на количество попыток сделать бякап
-     */
-    static private $MAX_REPEAT_BACKUP = 5;
-
     /** on-the-fly support */
     private $fsize, $fltr, $hctx;
-
     /** make backup support */
     private
-        /** @var array - hold tables name as result of INCLUDE-EXCLUDE calculations */
+        /** @var array - to holdhold table names of INCLUDE-EXCLUDE calculations */
         $tables = array()
         /** @var array - hold tables modfication time */
     , $times = array();
-
     /** @var bool|\resource */
     private $link = false;
-
     /** @var string - sql|sql.gz - метод работы с файлами */
     private $method = 'file';
 
     /**
-     * Внутренняя отладочная функция. Имеет содержимое только для специального варианта
-     * сборки или для тестовых прогонов
-     * @param $message
+     * просто конструктор
+     *
+     * @param array $options - те параметры, которые отличаются от дефолтных
      */
-    private function log($message)
+    public function __construct($options = array())
     {
-
+        /* вот так устанавливаются параметры */
+        $this->options(&$options);
     }
 
     /**
-     * внутренняя функция вывод прогресса операции.
-     * @param $name
-     * @param bool $call
-     * @return mixed
+     * @param string $options
+     * @param string $val
+     *
+     * @return array
      */
-    private function progress($name, $call = false)
+    public function options($options = '', $val = '')
     {
-        static $starttime, $param = array();
-        if (!is_callable($this->opt['progress']))
-            return;
-        if (is_array($name))
-            $param = array_merge($param, $name);
-        else
-            $param['val'] = $name;
-
-        if (!isset($starttime) || $call || (microtime(true) - $starttime) > $this->opt['progressdelay']) {
-            call_user_func($this->opt['progress'], &$param);
-            $starttime = microtime(true);
+        if (is_array($options)) {
+            $this->_opt = array_merge(
+                $this->_opt, array_intersect_key($options, $this->_opt)
+            );
+        } else {
+            $this->_opt[$options] = $val;
         }
-    }
-
-    /**
-     * построить имя файла с помощью каталога из параметра opt['files']
-     * @param $name
-     * @return string
-     */
-    public function directory($name = '')
-    {
-        if (empty($this->opt['file']))
-            $file = '';
-        else if (is_dir($this->opt['file']))
-            $file = rtrim($this->opt['file'], ' \/');
-        else
-            $file = trim(dirname($this->opt['file']));
-        if (!empty($file))
-            $file .= '/';
-        return $file . $name;
     }
 
     /**
@@ -418,33 +396,37 @@ class BACKUP
      *   opt[frompath], используя фильтр  datestr
      *
      * получается массив localname -> realname, который и выводится наружу
+     *
+     * @return array
      */
-
     public function getFiles()
     {
         $result = array();
         $pastcwd = getcwd();
-        $filter= array(
+        $filter = array(
             'before' => 0, 'after' => 0, 'include' => null, 'exclude' => null
         );
-        if (!empty($this->opt['frompath'])) {
-            chdir($this->opt['frompath']);
+        if (!empty($this->_opt['frompath'])) {
+            chdir($this->_opt['frompath']);
         }
-        if (!empty($this->opt['datestr'])) {
-            $time=strtotime($this->opt['datestr']) ;
-            $filter['before']= $time;
+        if (!empty($this->_opt['datestr'])) {
+            $time = strtotime($this->_opt['datestr']);
+            $filter['before'] = $time;
         }
-        $this->readDirReqursive(''
-            , $result, $filter);
+        $this->readDirReqursive(
+            '', $result, $filter
+        );
         chdir($pastcwd);
         return $result;
     }
 
     /**
      * рекурсивное чтение каталога
+     *
      * @param string $dir
      * @param array $result
      * @param array $filter
+     *
      *    include - preg's array to check it's possible
      *    exclude - preg's array to check it's impossible
      *    after -  filemtime of file after this time
@@ -462,10 +444,14 @@ class BACKUP
                     if (040000 == $mode) { // it's a directory
                         $this->readDirReqursive($entry, $result, $filter);
                     } else if (0100000 == $mode) {
-                        if (0 != $filter['before'] && $stat['mtime'] < $filter['before']) {
+                        if (0 != $filter['before']
+                            && $stat['mtime'] < $filter['before']
+                        ) {
                             continue;
                         }
-                        if (0 != $filter['after'] && $stat['mtime'] > $filter['after']) {
+                        if (0 != $filter['after']
+                            && $stat['mtime'] > $filter['after']
+                        ) {
                             continue;
                         }
                         if (!empty($filter['include'])) {
@@ -476,7 +462,9 @@ class BACKUP
                                     break;
                                 }
                             }
-                            if (!$possible) continue;
+                            if (!$possible) {
+                                continue;
+                            }
                         }
                         if (!empty($filter['exclude'])) {
                             foreach ($filter['exclude'] as $reg) {
@@ -486,7 +474,7 @@ class BACKUP
                             }
                         }
 
-                        $result[$entry]=realpath($entry);
+                        $result[$entry] = realpath($entry);
                     }
                 }
             }
@@ -495,52 +483,15 @@ class BACKUP
     }
 
     /**
-     * @param string $options
-     * @param string $val
-     * @return array
-     */
-    public function options($options = '', $val = '')
-    {
-        if (is_array($options))
-            $this->opt = array_merge($this->opt, array_intersect_key($options, $this->opt));
-        else
-            $this->opt[$options] = $val;
-    }
-
-    /**
-     * @param string $options
-     * @param string $val
+     * дайти опции народу
+     *
+     * @param string $option название опции
+     *
      * @return array
      */
     public function getOption($option)
     {
-        return isset($this->opt[$option]) ? $this->opt[$option] : null;
-    }
-
-    /**
-     * просто конструктор
-     * @param array $options - те параметры, которые отличаются от дефолтных
-     */
-    public function __construct($options = array())
-    {
-        /* вот так устанавливаются параметры */
-        $this->options(&$options);
-    }
-
-    private function connect()
-    {
-        if (!empty($this->link))
-            return;
-        echo $this->opt['host'] . ' ' . $this->opt['user'] . ' ' . $this->opt['pass'];
-        $this->link = mysql_connect($this->opt['host'], $this->opt['user'], $this->opt['pass']);
-        $this->opt['base'] = mysql_real_escape_string($this->opt['base']);
-        if (!mysql_select_db($this->opt['base'], $this->link)) {
-            throw new BackupException('Can\'t use `' . $this->opt['base'] . '` : ' . mysql_error(), mysql_errno());
-        }
-        ;
-        // empty - значит нинада!!!
-        if (!empty($this->opt['code']))
-            mysql_query('set NAMES "' . mysql_real_escape_string($this->opt['code']) . '";');
+        return isset($this->_opt[$option]) ? $this->_opt[$option] : null;
     }
 
     /**
@@ -548,100 +499,252 @@ class BACKUP
      */
     function __destruct()
     {
-        if (!empty($this->link))
+        if (!empty($this->link)) {
             mysql_close($this->link);
+        }
+    }
+
+    /**
+     * Читаем дамп и выполняем все Sql найденные в нем.
+     *
+     * @return bool
+     *
+     * @throws BackupException file not found
+     */
+    public function restore()
+    {
+        $this->log(sprintf('before restore "%s" ', $this->_opt['file']));
+        $handle = $this->open($this->_opt['file']);
+        if (!is_resource($handle)) {
+            throw new BackupException('File not found "' . $this->_opt['file'] . '"');
+        }
+        $notlast = true;
+        $buf = '';
+        @ignore_user_abort(1); // ибо нефиг
+        @set_time_limit(0); // ибо нефиг, again
+        //Seek to the end
+        /** @var $line - line coudnt to point to error line */
+        $line = 0;
+        if ($this->_opt['method'] == 'sql.gz') {
+            // find a sizesize
+            @gzseek($handle, 0, SEEK_END);
+            $total = gztell($handle);
+            gzseek($handle, 0, SEEK_SET);
+        } else {
+            fseek($handle, 0, SEEK_END);
+            $total = ftell($handle);
+            fseek($handle, 0, SEEK_SET);
+        }
+        $curptr = 0;
+        $this->connect();
+        $this->_progress(array('name' => 'restore', 'val' => 0, 'total' => $total));
+        do {
+            $string = fread($handle, self::$_MAXBUF);
+            $xx = explode(";\n", str_replace("\r", "", $buf . $string));
+
+            if (strlen($string) != self::$_MAXBUF) {
+                $notlast = false;
+            } else {
+                $buf = array_pop($xx);
+            }
+            $this->_progress($curptr += strlen($string));
+
+            foreach ($xx as $s) {
+                $clines = 0;
+                str_replace("\n", "\n", $s, $clines);
+                $line += $clines + 1; // point to last string in executing query.
+                // устраняем строковые комментарии
+                $s = trim(preg_replace('~^\s*\-\-.*?$|^\s*#.*?$~m', '', $s));
+                if (!empty($s)) {
+                    //echo ' x'.strlen($s).' ';
+                    $result = mysql_query($s);
+                    if (!$result) {
+                        // let' point to first line
+                        str_replace("\n", "\n", $s, $clines);
+                        throw new BackupException(sprintf(
+                            "Invalid query at line %s: %s\nWhole query: %s"
+                            , $line - $clines, mysql_error(), str_pad($s, 200)));
+                    }
+                    if (is_resource($result))
+                        mysql_free_result($result);
+                }
+            }
+            unset($string, $xx); // очищаем наиболее одиозные хапалки памяти
+        } while ($notlast);
+        unset($buf); // очищаем наиболее одиозные хапалки памяти
+
+        $this->close($handle);
+
+        $this->log(sprintf('after restore "%s" ', $this->_opt['file']));
+
+        return true;
+    }
+
+    /**
+     * Внутренняя отладочная функция. Имеет содержимое только для специального
+     * варианта сборки или для тестовых прогонов
+     *
+     * @param string $message
+     *
+     */
+    private function log($message)
+    {
+
     }
 
     /**
      * добиваемся прозрачности GZ и обычного чтения файла
-     * Заменитель стандартных open-close. read и write остаются fread и fwrite. Just a magic!
-     * @param $name - имя файла.
+     * Заменитель стандартных open-close.
+     * read и write остаются fread и fwrite. Just a magic!
+     *
+     * @param string $name - имя файла.
      * @param string $mode - режим открытия файла (w|r)
+     *
+     * @throws BackupException
+     *
      * @return resource - вертает результат соответствующей операции
      */
     function open($name, $mode = 'r')
     {
-        if (preg_match('/\.(sql|sql\.bz2|sql\.gz)$/i', $name, $m))
+        if (preg_match('/\.(sql|sql\.bz2|sql\.gz)$/i', $name, $m)) {
             $this->method = strtolower($m[1]);
-        else if (!empty($this->opt['method']))
-            $this->method = $this->opt['method'];
+        } else if (!empty($this->_opt['method'])) {
+            $this->method = $this->_opt['method'];
+        }
         if ($mode == 'w' && $this->method == 'sql') { // forcibly change type to gzip
-            //$this->method=$this->opt['method'];
-            if (!$this->opt['onthefly']) {
-                if ($this->method == 'sql.gz')
+            //$this->method=$this->_opt['method'];
+            if (!$this->_opt['onthefly']) {
+                if ($this->method == 'sql.gz') {
                     $name .= '.gz';
-                else if ($this->method == 'sql.bz2')
+                } else if ($this->method == 'sql.bz2') {
                     $name .= '.bz2';
+                }
             }
         }
         $this->fsize = 0;
 
-        if ($this->opt['sql'] && $mode == 'r') {
+        if ($this->_opt['sql'] && $mode == 'r') {
             $handle = @fopen("php://memory", "w+b");
             if ($handle === FALSE) {
                 $handle = @fopen("php://temp", "w+b");
-                if ($handle === FALSE)
-                    throw new BackupException('It\' impossible to use `php://temp`, sorry');
+                if ($handle === false) {
+                    throw new BackupException(
+                        'It\' impossible to use `php://temp`, sorry'
+                    );
+                }
             }
             //memory
             fwrite($handle, preg_replace(
-                '~;\s*(insert|create|delete|add|alter|select|set|drop)~i', ";\n\\1", $this->opt['sql']
+                '~;\s*(insert|create|delete|add|alter|select|set|drop)~i',
+                ";\n\\1", $this->_opt['sql']
             ));
             fseek($handle, 0);
             return $handle;
-        } else if ($this->opt['onthefly'] && $mode == 'w') { // gzzip on-the-fly without file
-            $this->opt['progress'] = ''; // switch off progress  :(
+        } else if ($this->_opt['onthefly'] && $mode == 'w') {
+            // gzzip on-the-fly without file
+            $this->_opt['progress'] = ''; // switch off progress  :(
             $handle = @fopen("php://output", "wb");
-            if ($handle === FALSE)
-                throw new BackupException('It\' impossible to use `gzip-on-the-fly`, sorry');
+            if ($handle === false) {
+                throw new BackupException(
+                    'It\' impossible to use `gzip-on-the-fly`, sorry'
+                );
+            }
             header($_SERVER["SERVER_PROTOCOL"] . ' 200 OK');
             header('Content-Type: application/octet-stream');
-            header('Connection: keep-alive'); // so it's possible to skip filesize header
-            header('Content-Disposition: attachment; filename="' . basename($name . '.gz') . '";');
+            // header means it's possible to skip filesize header
+            header('Connection: keep-alive');
+            header(
+                'Content-Disposition: attachment; filename="' .
+                basename($name . '.gz') . '";'
+            );
             // write gzip header
             fwrite($handle, "\x1F\x8B\x08\x08" . pack("V", time()) . "\0\xFF", 10);
             // write the original file name
             $oname = str_replace("\0", "", $name); //TODO: wtf?
             fwrite($handle, $oname . "\0", 1 + strlen($oname));
             // add the deflate filter using default compression level
-            $this->fltr = stream_filter_append($handle, "zlib.deflate", STREAM_FILTER_WRITE, -1);
+            $this->fltr = stream_filter_append(
+                $handle, "zlib.deflate", STREAM_FILTER_WRITE, -1
+            );
             $this->hctx = hash_init("crc32b"); // set up the CRC32 hashing context
             // turn off the time limit
-            if (!ini_get("safe_mode"))
+            if (!ini_get("safe_mode")) {
                 set_time_limit(0);
+            }
             return $handle;
         } else {
-            if ($mode == 'r' && !is_readable($name))
-                return FALSE;
+            if ($mode == 'r' && !is_readable($name)) {
+                return false;
+            }
             if ($this->method == 'sql.bz2') {
-                if (function_exists('bzopen'))
+                if (function_exists('bzopen')) {
                     return bzopen($name, $mode);
-                else {
+                } else {
                     $this->method = 'sql.gz';
                     $name = preg_replace('/\.bz2$/i', '.gz', $name);
                 }
             }
             if ($this->method == 'sql.gz') {
-                return gzopen($name, $mode . ($mode == 'w' ? $this->opt['compress'] : ''));
+                return gzopen(
+                    $name, $mode . ($mode == 'w' ? $this->_opt['compress'] : '')
+                );
             } else {
                 return fopen($name, "{$mode}b");
             }
         }
     }
 
-    /**
-     * заменитель write - поддержка счетчика записанных байтов.
-     * @param $handle
-     * @param $str
-     * @return int
-     */
-    function write($handle, $str)
+    private function connect()
     {
-        if (!empty($this->fltr)) {
-            hash_update($this->hctx, $str);
-            $this->fsize += strlen($str);
+        if (!empty($this->link)) {
+            return;
         }
-        return fwrite($handle, &$str);
+        $this->link = mysql_connect(
+            $this->_opt['host'], $this->_opt['user'], $this->_opt['pass']
+        );
+        $this->_opt['base'] = mysql_real_escape_string($this->_opt['base']);
+        if (!mysql_select_db($this->_opt['base'], $this->link)) {
+            throw new BackupException(
+                'Can\'t use `' . $this->_opt['base'] . '` : ' . mysql_error(),
+                mysql_errno()
+            );
+        }
+        ;
+        // empty - значит нинада!!!
+        if (!empty($this->_opt['code'])) {
+            mysql_query(
+                'set NAMES "' . mysql_real_escape_string($this->_opt['code']) . '";'
+            );
+        }
+    }
+
+    /**
+     * внутренняя функция вывод прогресса операции.
+     *
+     * @param callable $name хандлер длявызова функции прогресса
+     * @param bool $call вызывать, али нет
+     *
+     * @return mixed
+     */
+    private function _progress($name, $call = false)
+    {
+        static $starttime, $param = array();
+        if (!is_callable($this->_opt['progress'])) {
+            return;
+        }
+        if (is_array($name)) {
+            $param = array_merge($param, $name);
+        } else {
+            $param['val'] = $name;
+        }
+
+        if (!isset($starttime)
+            || $call
+            || (microtime(true) - $starttime) > $this->_opt['progressdelay']
+        ) {
+            call_user_func($this->_opt['progress'], &$param);
+            $starttime = microtime(true);
+        }
     }
 
     /**
@@ -665,6 +768,163 @@ class BACKUP
     }
 
     /**
+     * изготавливаем бякап
+     *
+     * @throws BackupException
+     *
+     * @return bool
+     */
+    public function make_backup()
+    {
+        $this->log(sprintf('before makebackup "%s" ', $this->_opt['file']));
+        $total = $this->getTables();
+        $this->log(sprintf('1step makebackup "%s" ', $this->_opt['file']));
+        @ignore_user_abort(1); // ибо нефиг
+        @set_time_limit(0); // ибо нефиг, again
+
+        $repeat_cnt = self::$_MAX_REPEAT_BACKUP;
+
+        do {
+            /** @var array - ключи, которые нужно вставить после основного дампа */
+            $postDumpKeys = array();
+            if (trim(basename($this->_opt['file'])) == '') {
+                $this->_opt['file'] = $this->directory(
+                    sprintf('db-%s-%s.sql', $this->_opt['base'], date('Ymd'))
+                );
+            }
+            $handle = $this->open($this->_opt['file'], 'w');
+            if (!$handle) {
+                throw new BackupException(
+                    'Can\'t create file "' . $this->_opt['file'] . '"'
+                );
+            }
+            $this->write(
+                $handle, sprintf(
+                    "--\n"
+                        . '-- "%s" database with +"%s"-"%s" tables' . "\n"
+                        . '--     ' . implode("\n--     ", $this->tables) . "\n"
+                        . '-- backup created: %s' . "\n"
+                        . "--\n\n",
+                    $this->_opt['base'], $this->_opt['include'],
+                    $this->_opt['exclude'], date('j M y H:i:s')
+                )
+            );
+            $retrow = array();
+
+            //Проходим в цикле по всем таблицам и форматируем данные
+            foreach ($this->tables as $table) {
+
+                if (isset($notNum)) {
+                    unset($notNum);
+                }
+                $notNum = array();
+                $this->log(sprintf('3step makebackup "%s" ', $table));
+                // нагло потырено у Sipex Dumper'а
+                $r = mysql_query("SHOW COLUMNS FROM `$table`");
+                $num_fields = 0;
+                while ($col = mysql_fetch_array($r)) {
+                    $notNum[$num_fields++] = preg_match(
+                        "/^(tinyint|smallint|mediumint|bigint|int|"
+                            . "float|double|real|decimal|numeric|year)/",
+                        $col['Type']
+                    ) ? 0 : 1;
+                }
+                mysql_free_result($r);
+                $this->write($handle, 'DROP TABLE IF EXISTS `' . $table . '`;');
+                $r = mysql_query('SHOW CREATE TABLE `' . $table . '`');
+                $row2 = mysql_fetch_row($r);
+                if (is_resource($r)) {
+                    mysql_free_result($r);
+                }
+                // обрабатываем CONSTRAINT key
+                while (
+                    preg_match(
+                        '/.*?(,$\s*CONSTRAINT.*?$)/m',
+                        $row2[1], $m, PREG_OFFSET_CAPTURE
+                    )
+                ) {
+                    $postDumpKeys[trim($m[1][0], ', ')] = $table;
+                    $row2[1] = substr($row2[1], 0, $m[1][1])
+                        . substr($row2[1], $m[1][1] + strlen($m[1][0]));
+                }
+
+                $this->write($handle, "\n\n" . $row2[1] . ";\n");
+                $this->write($handle,
+                    "\n/*!50111 ALTER table `$table` DISABLE KEYS */;\n\n"
+                );
+
+                $result = mysql_unbuffered_query(
+                    'SELECT * FROM `' . $table . '`', $this->link
+                );
+                $rowcnt = 0;
+                $this->_progress(
+                    array(
+                        'name' => $table, 'val' => 0, 'total' => $total[$table]
+                    )
+                );
+
+                $sql_insert_into = "INSERT INTO `" . $table . "` VALUES\n  ";
+                $str_len = strlen($sql_insert_into);
+                $sql_glue = ",\n  ";
+
+                while ($row = mysql_fetch_row($result)) {
+                    $rowcnt++;
+                    $this->_progress($rowcnt);
+
+                    for ($j = 0; $j < $num_fields; $j++) {
+                        if (is_null($row[$j])) {
+                            $row[$j] = 'NULL';
+                        } elseif ($notNum[$j]) {
+                            $row[$j] = '\'' . str_replace(
+                                '\\"', '"', mysql_real_escape_string($row[$j])
+                            ) . '\'';
+                        }
+                    }
+                    $str = '(' . implode(', ', $row) . ')';
+                    $str_len += strlen($str) + 1; //+str_len($sql_glue);
+                    // вместо 1 не надо, иначе на phpMySqlAdmin не будет похоже
+                    // Смысл - хочется выполнять не очень здоровые SQL запросы,
+                    // если есть возможность.
+                    if ($str_len > self::$_MAXBUF) {
+                        $this->write(
+                            $handle, $sql_insert_into
+                            . implode($sql_glue, $retrow) . ";\n\n"
+                        );
+                        unset($retrow);
+                        $retrow = array();
+                        $str_len = strlen($str) + strlen($sql_insert_into);
+                    }
+                    $retrow[] = $str;
+                    unset($row, $str);
+                }
+                $this->_progress('Ok', true);
+
+                if (count($retrow) > 0) {
+                    $this->write($handle, $sql_insert_into . implode($sql_glue, $retrow) . ";\n\n");
+                    unset($retrow);
+                    $retrow = array();
+                }
+                mysql_free_result($result);
+                $this->write($handle, "/*!50111 ALTER table `$table` ENABLE KEYS */;\n");
+            }
+            if (!empty($postDumpKeys)) {
+                foreach ($postDumpKeys as $v => $k) {
+                    $this->write($handle, sprintf("ALTER table `%s` ADD %s;\n\n", $k, $v));
+                }
+            }
+            //сохраняем файл
+            $this->close($handle);
+        } while ($this->tableChanged() && ($repeat_cnt--) > 0);
+
+        if ($repeat_cnt <= 0) {
+            throw new BackupException('Can\'t create backup. Heavy traffic, sorry. Try another day?' . "\n");
+        }
+
+        $this->log(sprintf('after makebackup "%s" ', $this->_opt['file']));
+        return true;
+    }
+
+    /**
      * get tables names matched width include-exclude mask
      */
     public function getTables()
@@ -673,16 +933,16 @@ class BACKUP
         $exclude = array();
         // делаем регулярки из простой маски
         foreach (array('include', 'exclude') as $s) {
-            $$s = explode(',', $this->opt[$s]);
+            $$s = explode(',', $this->_opt[$s]);
             foreach ($$s as &$x) {
-                $x = '~^' . str_replace(array('~', '*', '?'), array('\~', '.*', '.'), $x) . '$~';
+                $x = '~^' . str_replace(array('~', '*', '?'), array('\~', '.*', '.'), trim($x)) . '$~';
             }
             unset($x);
         }
 
         $total = array(); // время последнего изменения
         $this->connect();
-        $result = mysql_query('SHOW TABLE STATUS FROM `' . $this->opt['base'] . '` like "%"');
+        $result = mysql_query('SHOW TABLE STATUS FROM `' . $this->_opt['base'] . '` like "%"');
         if (!$result) {
             throw new BackupException('Invalid query: ' . mysql_error() . "\n");
         }
@@ -709,77 +969,38 @@ class BACKUP
     }
 
     /**
-     * Читаем дамп и выполняем все Sql найденные в нем.
-     * @return bool
+     * построить имя файла с помощью каталога из параметра opt['files']
+     * @param $name
+     * @return string
      */
-    public function restore()
+    public function directory($name = '')
     {
-        $this->log(sprintf('before restore "%s" ', $this->opt['file']));
-        $handle = $this->open($this->opt['file']);
-        if (!is_resource($handle))
-            throw new BackupException('File not found "' . $this->opt['file'] . '"');
-        $notlast = true;
-        $buf = '';
-        @ignore_user_abort(1); // ибо нефиг
-        @set_time_limit(0); // ибо нефиг, again
-        //Seek to the end
-        /** @var $line - line coudnt to point to error line */
-        $line = 0;
-        if ($this->opt['method'] == 'sql.gz') {
-            // find a sizesize
-            @gzseek($handle, 0, SEEK_END);
-            $total = gztell($handle);
-            gzseek($handle, 0, SEEK_SET);
+        if (empty($this->_opt['file'])) {
+            $file = '';
+        } else if (is_dir($this->_opt['file'])) {
+            $file = rtrim($this->_opt['file'], ' \/');
         } else {
-            fseek($handle, 0, SEEK_END);
-            $total = ftell($handle);
-            fseek($handle, 0, SEEK_SET);
+            $file = trim(dirname($this->_opt['file']));
         }
-        $curptr = 0;
-        $this->connect();
-        $this->progress(array('name' => 'restore', 'val' => 0, 'total' => $total));
-        do {
-            $string = fread($handle, self::$MAXBUF);
-            $xx = explode(";\n", str_replace("\r", "", $buf . $string));
+        if (!empty($file)) {
+            $file .= '/';
+        }
+        return $file . $name;
+    }
 
-            if (strlen($string) != self::$MAXBUF) {
-                $notlast = false;
-            } else {
-                $buf = array_pop($xx);
-            }
-            $this->progress($curptr += strlen($string));
-
-            foreach ($xx as $s) {
-                $clines = 0;
-                str_replace("\n", "\n", $s, $clines);
-                $line += $clines + 1; // point to last string in executing query.
-                // устраняем строковые комментарии
-                $s = trim(preg_replace('~^\s*\-\-.*?$|^\s*#.*?$~m', '', $s));
-                if (!empty($s)) {
-                    //echo ' x'.strlen($s).' ';
-                    $result = mysql_query($s);
-                    if (!$result) {
-                        // let' point to first line
-                        str_replace("\n", "\n", $s, $clines);
-                        throw new BackupException(sprintf(
-                            "Invalid query at line %s: %s\nWhole query: %s"
-                            , $line - $clines, mysql_error(), str_pad($s, 200)));
-                    }
-                    if (is_resource($result))
-                        mysql_free_result($result);
-                }
-            }
-            ;
-
-            unset($string, $xx); // очищаем наиболее одиозные хапалки памяти
-        } while ($notlast);
-        unset($buf); // очищаем наиболее одиозные хапалки памяти
-
-        $this->close($handle);
-
-        $this->log(sprintf('after restore "%s" ', $this->opt['file']));
-
-        return true;
+    /**
+     * заменитель write - поддержка счетчика записанных байтов.
+     * @param $handle
+     * @param $str
+     * @return int
+     */
+    function write($handle, $str)
+    {
+        if (!empty($this->fltr)) {
+            hash_update($this->hctx, $str);
+            $this->fsize += strlen($str);
+        }
+        return fwrite($handle, &$str);
     }
 
     /**
@@ -790,7 +1011,7 @@ class BACKUP
     {
         // не поменялись ли таблицы за время дискотеки?
         $changed = false;
-        $result = mysql_query('SHOW TABLE STATUS FROM `' . $this->opt['base'] . '` like "%"');
+        $result = mysql_query('SHOW TABLE STATUS FROM `' . $this->_opt['base'] . '` like "%"');
         while ($row = mysql_fetch_assoc($result)) {
             if (in_array($row['Name'], $this->tables)) {
                 if ($this->times[$row['Name']] != $row['Update_time']) {
@@ -804,126 +1025,9 @@ class BACKUP
         return $changed;
     }
 
-    /**
-     * изготавливаем бякап
-     * @return bool
-     */
-    public function make_backup()
-    {
-        $this->log(sprintf('before makebackup "%s" ', $this->opt['file']));
-        $total = $this->getTables();
-        $this->log(sprintf('1step makebackup "%s" ', $this->opt['file']));
-        @ignore_user_abort(1); // ибо нефиг
-        @set_time_limit(0); // ибо нефиг, again
-
-        $repeat_cnt = self::$MAX_REPEAT_BACKUP;
-
-        do {
-            /** @var array - ключи, которые нужно вставить после основного дампа */
-            $postDumpKeys = array();
-            if (trim(basename($this->opt['file'])) == '') {
-                $this->opt['file'] = $this->directory(sprintf('db-%s-%s.sql', $this->opt['base'], date('Ymd')));
-            }
-            $handle = $this->open($this->opt['file'], 'w');
-            if (!$handle)
-                throw new BackupException('Can\'t create file "' . $this->opt['file'] . '"');
-            $this->write($handle, sprintf("--\n"
-                    . '-- "%s" database with +"%s"-"%s" tables' . "\n"
-                    . '--     ' . implode("\n--     ", $this->tables) . "\n"
-                    . '-- backup created: %s' . "\n"
-                    . "--\n\n"
-                , $this->opt['base'], $this->opt['include'], $this->opt['exclude'], date('j M y H:i:s')));
-            $retrow = array();
-
-            //Проходим в цикле по всем таблицам и форматируем данные
-            foreach ($this->tables as $table) {
-
-                if (isset($notNum))
-                    unset($notNum);
-                $notNum = array();
-                $this->log(sprintf('3step makebackup "%s" ', $table));
-                // нагло потырено у Sipex Dumper'а
-                $r = mysql_query("SHOW COLUMNS FROM `$table`");
-                $num_fields = 0;
-                while ($col = mysql_fetch_array($r)) {
-                    $notNum[$num_fields++] = preg_match("/^(tinyint|smallint|mediumint|bigint|int|float|double|real|decimal|numeric|year)/", $col['Type']) ? 0 : 1;
-                }
-                mysql_free_result($r);
-                $this->write($handle, 'DROP TABLE IF EXISTS `' . $table . '`;');
-                $r = mysql_query('SHOW CREATE TABLE `' . $table . '`');
-                $row2 = mysql_fetch_row($r);
-                if (is_resource($r))
-                    mysql_free_result($r);
-                // обрабатываем CONSTRAINT key
-                while (preg_match('/.*?(,$\s*CONSTRAINT.*?$)/m', $row2[1], $m, PREG_OFFSET_CAPTURE)) {
-                    $postDumpKeys[trim($m[1][0], ', ')] = $table;
-                    $row2[1] = substr($row2[1], 0, $m[1][1]) . substr($row2[1], $m[1][1] + strlen($m[1][0]));
-                }
-
-                $this->write($handle, "\n\n" . $row2[1] . ";\n");
-                $this->write($handle, "\n/*!50111 ALTER table `$table` DISABLE KEYS */;\n\n");
-
-                $result = mysql_unbuffered_query('SELECT * FROM `' . $table . '`', $this->link);
-                $rowcnt = 0;
-                $this->progress(array('name' => $table, 'val' => 0, 'total' => $total[$table]));
-
-                $sql_insert_into = "INSERT INTO `" . $table . "` VALUES\n  ";
-                $str_len = strlen($sql_insert_into);
-                $sql_glue = ",\n  ";
-
-                while ($row = mysql_fetch_row($result)) {
-                    $rowcnt++;
-                    $this->progress($rowcnt);
-
-                    for ($j = 0; $j < $num_fields; $j++) {
-                        if (is_null($row[$j]))
-                            $row[$j] = 'NULL';
-                        elseif ($notNum[$j]) {
-                            $row[$j] = '\'' . str_replace('\\"', '"', mysql_real_escape_string($row[$j])) . '\'';
-                        }
-                    }
-                    $str = '(' . implode(', ', $row) . ')';
-                    $str_len += strlen($str) + 1; //+str_len($sql_glue);// вместо 1 не надо, иначе на phpMySqlAdmin не будет похоже
-                    // Смысл - хочется выполнять не очень здоровые SQL запросы, если есть возможность.
-                    if ($str_len > self::$MAXBUF) {
-                        $this->write($handle, $sql_insert_into . implode($sql_glue, $retrow) . ";\n\n");
-                        unset($retrow);
-                        $retrow = array();
-                        $str_len = strlen($str) + strlen($sql_insert_into);
-                    }
-                    $retrow[] = $str;
-                    unset($row, $str);
-                }
-                $this->progress('Ok', true);
-
-                if (count($retrow) > 0) {
-                    $this->write($handle, $sql_insert_into . implode($sql_glue, $retrow) . ";\n\n");
-                    unset($retrow);
-                    $retrow = array();
-                }
-                mysql_free_result($result);
-                $this->write($handle, "/*!50111 ALTER table `$table` ENABLE KEYS */;\n");
-            }
-            if (!empty($postDumpKeys)) {
-                foreach ($postDumpKeys as $v => $k) {
-                    $this->write($handle, sprintf("ALTER table `%s` ADD %s;\n\n", $k, $v));
-                }
-            }
-            //сохраняем файл
-            $this->close($handle);
-        } while ($this->tableChanged() && ($repeat_cnt--) > 0);
-
-        if ($repeat_cnt <= 0) {
-            throw new BackupException('Can\'t create backup. Heavy traffic, sorry. Try another day?' . "\n");
-        }
-
-        $this->log(sprintf('after makebackup "%s" ', $this->opt['file']));
-        return true;
-    }
-
 }
 
-/************************************************************************************
+/***********************************************************************************
  *
  * License agreement
  * =================
@@ -932,5 +1036,5 @@ class BACKUP
  * license
  * 
  *
- ***********************************************************************************
+ **********************************************************************************
  */
