@@ -3,8 +3,7 @@
 /**
  * ----------------------------------------------------------------------------------
  * $Id: Backup-script. All about sql-dump for MySql databases,
- * ver: v1.2-12-g8c9fced, Last build: 1308311520
- * status : draft build.
+ * ver: v1.2-13-gcee0e73, Last build: 1308311540
  * GIT: origin	https://github.com/Ksnk/Backup-script (push)$
  * ----------------------------------------------------------------------------------
  * MIT license - Serge Koriakin - Jule 2010-2012, sergekoriakin@gmail.com
@@ -95,7 +94,7 @@ class BACKUP
      * парамметры установить
      *
      * @param string|mixed $options имя или парамметры
-     * @param string $val     значение, если первый параметр строка
+     * @param string       $val     значение, если первый параметр строка
      *
      * @return backup
      */
@@ -220,7 +219,7 @@ class BACKUP
     function __destruct()
     {
         if (!empty($this->link)) {
-            mysqli_close($this->link);
+            mysql_close($this->link);
         }
     }
 
@@ -279,17 +278,16 @@ class BACKUP
                 $s = trim(preg_replace('~^\s*\-\-.*?$|^\s*#.*?$~m', '', $s));
                 if (!empty($s)) {
                     //echo ' x'.strlen($s).' ';
-                    $result = mysqli_query($this->link, $s);
+                    $result = mysql_query($s);
                     if (!$result) {
                         // let' point to first line
                         str_replace("\n", "\n", $s, $clines);
                         throw new BackupException(sprintf(
                             "Invalid query at line %s: %s\nWhole query: %s"
-                            , $line - $clines, mysqli_error($this->link)
-                            , str_pad($s, 200)));
+                            , $line - $clines, mysql_error(), str_pad($s, 200)));
                     }
                     if (is_resource($result)) {
-                        mysqli_free_result($result);
+                        mysql_free_result($result);
                     }
                 }
             }
@@ -379,7 +377,7 @@ class BACKUP
             header('Connection: keep-alive');
             header(
                 'Content-Disposition: attachment; filename="' .
-                    basename($name . '.gz') . '";'
+                basename($name . '.gz') . '";'
             );
             // write gzip header
             fwrite($handle, "\x1F\x8B\x08\x08" . pack("V", time()) . "\0\xFF", 10);
@@ -423,35 +421,20 @@ class BACKUP
         if (!empty($this->link)) {
             return;
         }
-        $this->link = mysqli_connect(
+        $this->link = mysql_connect(
             $this->_opt['host'], $this->_opt['user'], $this->_opt['pass']
         );
-        if (mysqli_connect_error()) {
+        $this->_opt['base'] = mysql_real_escape_string($this->_opt['base']);
+        if (!mysql_select_db($this->_opt['base'], $this->link)) {
             throw new BackupException(
-                'Connect Error (' . mysqli_connect_errno() . ') '
-                . mysqli_connect_error()
-            );
-        }
-
-        // empty - значит нинада!!!
-        if (!empty($this->_opt['base'])
-            && !mysqli_select_db(
-                $this->link,
-                mysqli_escape_string($this->link,
-                    $this->_opt['base'])
-            )
-        ) {
-            throw new BackupException(
-                'Can\'t use `' . $this->_opt['base'] . '` : '
-                    . mysqli_error($this->link),
-                mysqli_errno($this->link)
+                'Can\'t use `' . $this->_opt['base'] . '` : ' . mysql_error(),
+                mysql_errno()
             );
         }
         // empty - значит нинада!!!
         if (!empty($this->_opt['code'])) {
-            mysqli_query(
-                $this->link,
-                'set NAMES "' . mysqli_escape_string($this->link, $this->_opt['code']) . '";'
+            mysql_query(
+                'set NAMES "' . mysql_real_escape_string($this->_opt['code']) . '";'
             );
         }
     }
@@ -558,21 +541,21 @@ class BACKUP
                 $notNum = array();
                 $this->log(sprintf('3step makebackup "%s" ', $table));
                 // нагло потырено у Sipex Dumper'а
-                $r = mysqli_query($this->link, "SHOW COLUMNS FROM `$table`");
+                $r = mysql_query("SHOW COLUMNS FROM `$table`");
                 $num_fields = 0;
-                while ($col = mysqli_fetch_array($r)) {
+                while ($col = mysql_fetch_array($r)) {
                     $notNum[$num_fields++] = preg_match(
                         "/^(tinyint|smallint|mediumint|bigint|int|"
                             . "float|double|real|decimal|numeric|year)/",
                         $col['Type']
                     ) ? 0 : 1;
                 }
-                mysqli_free_result($r);
+                mysql_free_result($r);
                 $this->write($handle, 'DROP TABLE IF EXISTS `' . $table . '`;');
-                $r = mysqli_query($this->link, 'SHOW CREATE TABLE `' . $table . '`');
-                $row2 = mysqli_fetch_row($r);
+                $r = mysql_query('SHOW CREATE TABLE `' . $table . '`');
+                $row2 = mysql_fetch_row($r);
                 if (is_resource($r)) {
-                    mysqli_free_result($r);
+                    mysql_free_result($r);
                 }
                 // обрабатываем CONSTRAINT key
                 while (
@@ -591,9 +574,8 @@ class BACKUP
                     "\n/*!50111 ALTER table `$table` DISABLE KEYS */;\n\n"
                 );
 
-                $result = mysqli_real_query(
-                    $this->link,
-                    'SELECT * FROM `' . $table . '`'
+                $result = mysql_unbuffered_query(
+                    'SELECT * FROM `' . $table . '`', $this->link
                 );
                 $rowcnt = 0;
                 $this->_progress(
@@ -605,8 +587,8 @@ class BACKUP
                 $sql_insert_into = "INSERT INTO `" . $table . "` VALUES\n  ";
                 $str_len = strlen($sql_insert_into);
                 $sql_glue = ",\n  ";
-                $result=mysqli_use_result($this->link);
-                while ($row = mysqli_fetch_row($result)) {
+
+                while ($row = mysql_fetch_row($result)) {
                     $rowcnt++;
                     $this->_progress($rowcnt);
 
@@ -615,7 +597,7 @@ class BACKUP
                             $row[$j] = 'NULL';
                         } elseif ($notNum[$j]) {
                             $row[$j] = '\'' . str_replace(
-                                '\\"', '"', mysqli_escape_string($this->link, $row[$j])
+                                '\\"', '"', mysql_real_escape_string($row[$j])
                             ) . '\'';
                         }
                     }
@@ -646,7 +628,7 @@ class BACKUP
                     unset($retrow);
                     $retrow = array();
                 }
-                mysqli_free_result($result);
+                mysql_free_result($result);
                 $this->write(
                     $handle, "/*!50111 ALTER table `$table` ENABLE KEYS */;\n"
                 );
@@ -692,15 +674,14 @@ class BACKUP
 
         $total = array(); // время последнего изменения
         $this->connect();
-        $result = mysqli_query(
-            $this->link,
+        $result = mysql_query(
             'SHOW TABLE STATUS FROM `' . $this->_opt['base'] . '` like "%"'
         );
         if (!$result) {
-            throw new BackupException('Invalid query: ' . mysqli_error($this->link) . "\n");
+            throw new BackupException('Invalid query: ' . mysql_error() . "\n");
         }
         // запоминаем время модификации таблиц и таблицы, подходящие нам по маске
-        while ($row = mysqli_fetch_assoc($result)) {
+        while ($row = mysql_fetch_assoc($result)) {
             foreach ($include as $i) {
                 if (preg_match($i, $row['Name'])) {
                     foreach ($exclude as $x) {
@@ -718,7 +699,7 @@ class BACKUP
         }
         unset($include, $exclude);
         //var_dump($this->tables);
-        mysqli_free_result($result);
+        mysql_free_result($result);
         return $total;
     }
 
@@ -759,18 +740,16 @@ class BACKUP
 
     /**
      * вызов функции проверки времени модификации таблиц
-     *
      * @return bool
      */
     function tableChanged()
     {
         // не поменялись ли таблицы за время дискотеки?
         $changed = false;
-        $result = mysqli_query(
-            $this->link,
+        $result = mysql_query(
             'SHOW TABLE STATUS FROM `' . $this->_opt['base'] . '` like "%"'
         );
-        while ($row = mysqli_fetch_assoc($result)) {
+        while ($row = mysql_fetch_assoc($result)) {
             if (in_array($row['Name'], $this->tables)) {
                 if ($this->times[$row['Name']] != $row['Update_time']) {
                     $this->times[$row['Name']] = $row['Update_time'];
@@ -779,7 +758,7 @@ class BACKUP
             }
             unset($row);
         }
-        mysqli_free_result($result);
+        mysql_free_result($result);
         return $changed;
     }
 

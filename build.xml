@@ -31,7 +31,7 @@
         <preprocess  config="config.xml" force='force'>
             <param name="dst" value="build/allinone.mysqli.Ajax"/>
             <param name="target" value="allinone"/>
-            <param name="driver" value=".mysqli"/>
+            <param name="driver" value="backup.mysqli"/>
             <param name="executor" value="Ajax/Ajax_executor"/>
 
         </preprocess>
@@ -52,7 +52,7 @@
         <preprocess  config="config.xml" force='force'>
             <param name="target" value="cms-plugin"/>
             <param name="license" value="MIT license - Serge Koriakin - Jule 2010-2012, sergekoriakin@gmail.com"/>
-            <param name="driver" value=".mysqli"/>
+            <param name="driver" value="backup.mysqli"/>
             <param name="dst" value="build/cms-plugin.mysqli"/>
             <param name="executor" value="empty/empty_executor"/>
         </preprocess>
