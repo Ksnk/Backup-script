@@ -1,9 +1,306 @@
 <?php
 
 /**
- * <%=point('hat','comment');%>
+ * ----------------------------------------------------------------------------------
+ * $Id: Backup-script. All about sql-dump for MySql databases,
+ * ver: v1.2-12-g8c9fced, Last build: 1308311428
+ * status : draft build.
+ * GIT: origin	https://github.com/Ksnk/Backup-script (push)$
+ * ----------------------------------------------------------------------------------
+ * License GNU/LGPL - Serge Koriakin - Jule 2010-2012, sergekoriakin@gmail.com
+ * ----------------------------------------------------------------------------------
  */
-/* <%=point('execute');%> */
+/*  --- point::execute --- */
+
+/**
+ * This is a first part of ALL-IN-ONE-FILE build of project
+ * Main purpose - provide all possible parameters with URI
+ * for list of all parameters look at main file options
+ */
+
+define('BACKUP_CONFIG',"backup.config.php");
+
+/*  --- point::support_functions --- */
+/*
+/**
+ * простой заполнитель форм
+ * элементы формы не заполнены по умолчанию, кроме полей text   //todo - ликвидировать со временем
+ * пара name[ value]- последние атрибуты в элементе формы
+ * //todo: обрабатывается только одна форма. Ну и ладно...
+ * @param $html
+ * @param $opt
+ * @return mixed
+ */
+function form_helper($html, $opt)
+{
+    foreach ($opt as $k => $v) {
+        if (preg_match('/<(\w+)[^>]*name=([\'"]?)' . preg_quote($k) . '\2[^>]*>/i', $html, $m, PREG_OFFSET_CAPTURE)) {
+            $type = strtolower($m[1][0]);
+            if ($type == 'input') {
+                if (!preg_match('/type=([\'"]?)(select|button|submit|radio|checkbox)\1/i', $m[0][0], $mm))
+                    $type = 'text';
+                else
+                    $type = strtolower($mm[2]);
+            }
+            switch ($type) {
+                case 'select':
+                    if (!is_array($v)) $v = array($v);
+                    foreach ($v as $xx)
+                        $html = preg_replace('#(value=([\'"]?)' . preg_quote($xx) . '\2)\s*>#', '\1 selected>', $html);
+                    break;
+                case 'checkbox':
+                case 'radio':
+                    $html = preg_replace('#(name=([\'"]?)' . preg_quote($k) . '\2\s+value=([\'"]?)' . preg_quote($v) . '\3)>#'
+                        , '\1 checked>'
+                        , $html);
+                    break;
+                case 'text':
+                    $html = substr($html, 0, $m[0][1])
+                        . preg_replace('#(name=([\'"]?)' . preg_quote($k) . '\2)(?:[^>]*value=([\'"]?).*?\3)?#'
+                            , '\1 value="' . htmlspecialchars($v) . '"'
+                            , $m[0][0])
+                        . substr($html, $m[0][1] + strlen($m[0][0]));
+                    break;
+            }
+        }
+    }
+    return $html;
+}
+
+if(!function_exists('json_encode')){
+    function json_encode($a)
+    {
+        if (is_null($a)) return 'null';
+        if ($a === false) return 'false';
+        if ($a === true) return 'true';
+        if (is_scalar($a)) {
+            $a = addslashes($a);
+            $a = str_replace("\n", '\n', $a);
+            $a = str_replace("\r", '\r', $a);
+            $a = preg_replace('{(</)(script)}i', "$1\"+\"$2", $a);
+            return "\"$a\"";
+        }
+        $isList = true;
+        for ($i=0, reset($a); $i<count($a); $i++, next($a))
+            if (key($a) !== $i) { $isList = false; break; }
+        $result = array();
+        if ($isList) {
+            foreach ($a as $v) $result[] = php2js($v);
+            return '[ ' . join(', ', $result) . ' ]';
+        } else {
+            foreach ($a as $k=>$v)
+                $result[] = php2js($k) . ': ' . php2js($v);
+            return '{ ' . join(', ', $result) . ' }';
+        }
+    }
+
+}
+/**
+ * function to show a progress with plain html style.
+ * Just send 4096 commented spaces for shure it been displayed
+ * @param array $val
+ * @internal param $name
+ * @internal param $val
+ * @internal param $total
+ */
+function progress($val){
+    if($val['total']==0)$val['total']=1;
+    show($val,"top.log")  ;
+}
+function show($val='',$p="top.log"){
+    static $progress="<!DOCTYPE html> <html><body>", $store=array();
+    if(!empty($progress)) {
+        header('Content-type: text/html; charset=UTF-8');
+        echo($progress);$progress='';
+    }
+    if(!empty($val))
+        $store[]= json_encode($val);
+    if (!empty($p)) {
+        $res=$p.'('.implode(');'.$p.'(',$store).');'; $store=array();
+         printf('<script type="text/javascript">'.$res.'</script><!--'.str_pad(' ',4096).'-->',
+            $res
+        );
+    }
+}
+
+/* color cheme */
+$gray = '#636466';
+$lgray ='#d9dce3';
+$red = '#981b1e' ;
+$textlink = '#6186ba';
+
+/**
+ * main execution loop
+ */
+try{
+    // filter input arrays a little to avoid bruteforce attack by using this script.
+    $backup=new BACKUP(array_diff_key(
+        $_GET
+        ,array('user'=>1,'pass'=>1)
+    ));
+    // check if there is an options
+    $backup->options('progress','progress');
+    /** @var $opt additional options to save form data */
+    $opt=array(
+ //        'saveincookie' =>'',
+        'method' =>'sql.gz',
+        'include'=>$backup->getOption('include'),
+        'exclude'=>$backup->getOption('exclude'),
+    );
+    if(is_readable(BACKUP_CONFIG)) {
+        $opt=@array_merge($opt,include (BACKUP_CONFIG));
+    }
+    // $backup->options('onthefly',true);
+    if('POST'==$_SERVER['REQUEST_METHOD']){
+        $_POST=array_merge( array(
+            'files'=>'',
+            'code'=>'',
+            'type'=>0,
+            ),$_POST);
+        if (isset($_POST['code_1'])){
+            if($_POST['code_1']=='none'){
+                $opt['code']='';
+            } else {
+                $opt['code']=$_POST['code_1'];
+            }
+        } else if(""!=trim($_POST['code'])){
+            $opt['code']=trim($_POST['code']);
+        }
+        foreach(array('include','exclude','datestr','frompath') as $x)    {
+            if(isset($_POST[$x]) && (""!=trim($_POST[$x])))
+                $backup->options($x,$_POST[$x]);
+        }
+
+        foreach(array('user','pass','host','base','method') as $x)
+            if($_POST[$x]{0}!='*') {
+                $opt[$x]=$_POST[$x];
+            }
+        if (isset($_POST['saveatserver'])){
+
+            $result=@file_put_contents(BACKUP_CONFIG,'<'.'?php return '.var_export($opt,true).';') ;
+            if($result===false) {
+                show('Can\'t store configuration!','');
+            } else {
+                show('configuration stored!','');
+            }
+        }
+        $backup->options($opt);
+        try {
+            if(isset($_POST['testnames'])){  // so test names with tar-gzip
+                $total=$backup->getFiles();
+                foreach($total as $k=>$v)
+                    show(sprintf('found `%s` -> `%s` ',$k,$v),'');
+                show("Found ".count($total)." files:",'');
+            } else if(isset($_POST['zipit'])){
+                //$total=$backup->getFiles();
+                $phar = new PharData('project.tar');
+                $phar->buildFromIterator(
+                    new ArrayIterator(
+                        $backup->getFiles()
+                    ));
+                @unlink ('project.tar.gz');
+                $phar->compress(Phar::GZ,'.tar.gz');
+                unset($phar);
+                @unlink ('project.tar');
+                show("OK!",'');
+            } else if(isset($_POST['unzip'])){
+                $phar = new PharData('project.tar.gz');
+                $path='';
+                if (!empty($_POST['frompath'])) {
+                    $path=$_POST['frompath'];
+                }
+                $phar->extractTo($path);
+                unset($phar);
+                show("OK!",'');
+            } else if(isset($_POST['testinclude'])){
+                $total=$backup->getTables();
+                foreach($total as $k=>$v)
+                    show(sprintf('  `%s` - %d rows',$k,$v),'');
+                show("Found ".count($total)." tables:",'');
+
+            } else if('restore'==$_POST['type']){
+                // check if file uploaded
+                $uploadedfile='';$file='';
+                if(!empty($_FILES))
+                foreach($_FILES as $f){
+                    if(is_readable($f['tmp_name'])){
+                        $uploadedfile=$f['tmp_name'];
+                        if(preg_match('/\.(sql|sql\.bz2|sql\.gz)$/i', $f['name'], $m))
+                            $backup->options('method',strtolower($m[1]));
+                        else
+                            throw new BackupException(sprintf('File "%s" has unsupported format.',$f['name']));
+                        break;
+                    } else {
+                        throw new BackupException(sprintf('File "%s" unsupported, sorry.',$f['name']),'');
+                    }
+                }
+                if(!empty($uploadedfile)){
+                    $backup->options('file',$uploadedfile);
+                    show('File uploaded "'.basename($f['name']).'" ','')  ;
+                    $backup->restore();
+                } else if (!empty($_POST['sql'])) {
+                    $backup->options(array(
+                        'method'=>'sql','sql'=>&$_POST['sql'],'code'=>'utf8'));
+                    $backup->restore();
+                } else if (!empty($_POST['files'])) {
+                    show('Restoring database from "'.$backup->directory($_POST['files']).'"','');
+
+                    $backup->options('file',$backup->directory($_POST['files']));
+                    $backup->restore();
+                }
+               // show(print_r($_POST,true)."\n".print_r($_FILES,true));
+                show('Restoring complete','');
+            } else if('backup'==$_POST['type']){
+                //var_dump($_POST);var_dump($_FILES);
+                if(!empty($_POST['onthefly'])){
+                    $backup->options('onthefly',true);
+                }
+                $backup->make_backup();
+            } else {
+                //show(print_r($_POST,true));
+
+            }
+        } catch (BackupException $e) {
+                if($e->getCode()==1045 ) {
+                    show('Access denied. Check setting!'
+                        .$backup->getOption('pass').'|'
+                            .$backup->getOption('user').'|'
+                            .$backup->getOption('base').'|'
+                            .$backup->getOption('host').'|'
+                        ,'')  ;
+                } else
+                    show($e->getMessage(),'');
+        }
+        show();
+        exit;
+    }
+    header('Content-type: text/html; charset=UTF-8');
+    $a=array();
+    if(!isset($_POST['files']))$_POST['files']='';
+    $files=glob($backup->directory($_POST['files'])."{*.sql,*.sql.gz,*.sql.bz2}",GLOB_BRACE);
+    if(is_array($files) && count($files)>0)
+    foreach($files as $v){
+        $a[]=basename($v);
+    }
+    if(empty($a))
+        $filenames= '';
+    else
+        $filenames= '<select size="5" name="files"><option>'.implode('</option><option>',$a).'</option></select>';
+   // if(!empty($opt['pass'])) $opt['pass']="********";
+    echo form_helper("<!DOCTYPE html> <html> <head><title>Mysql Backup utility</title> <meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\"><script src=\"https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js\" type=\"text/javascript\"></script><script type=\"text/javascript\">\nfunction log(o) {\nif (!o) return;\nif (typeof(o) == 'object') {\nif (o.val + '' === o.val)\no = o.name + ' ' + o.val;\nelse {\ndocument.getElementById('progress').innerHTML = o.name + ' ' + (100 * o.val / o.total) + '%';\nreturn;\n}\n}\nvar x = document.getElementById('log');\ndocument.getElementById('progress').innerHTML = '';\nx.insertBefore(document.createElement('br'), x.firstChild);\nx.insertBefore(document.createTextNode(o), x.firstChild);\n}\nfunction show_log(idx) {\nvar log = $('#log_place');\nif (idx == 1 || (idx == 0 && log.css('z-index') == 1)) log.css('z-index', 3);\nelse if (idx == 2 || (idx == 0 && log.css('z-index') == 3)) log.css('z-index', 1);\n}\nfunction _submit() {\nvar a = $('dt.active'), form = $('form', 'dt.active+dd')[0];\nvar x = false;\nif ($('dt.active').attr('id') != 'setup') {\nx = $('input', $('#setup+dd')).clone().css('display', 'none').appendTo(form);\n}\nform.submit();\nshow_log(1);\nif (x) setTimeout(function () {\nx.remove()\n}, 10);\nreturn false;\n}\nfunction setActive(x) {\nshow_log(2);\nvar id = $(x = (x || '#setup')).attr('id');\ndocument.location.hash = id && (id != 'setup') && id || '';\n$('dt.active').removeClass('active').next('dd:eq(0)').hide();\n$(x).addClass('active').next('dd:eq(0)').show();\n}\n$(function () {\n$('label.replace').each(function () {\n$(this).after($($(this).text()).clone(true).removeAttr('id')).remove()\n});\nfunction LookAtHash() {\nsetActive(document.location.hash);\n}\nLookAtHash();\n$(document.body).on('click',function(event){\nvar x=$(event.target);\nif(x.is('dt')){\nsetActive(x);\n} else if((x=$(event.target).parents('dt')).length>0){\nsetActive(x[0]);\n} else if(!(x=$(event.target).parents('#main')).length>0) {\nshow_log(0)\n}\n})\n$('form select[name=files]').dblclick(_submit);\n})\n</script><style type=\"text/css\"> html { height: 100%; overflow: auto; margin: 0; } body { height: 100%; position: relative; overflow: hidden; background-color: #fcfcfc; margin: 0; } body, input, textarea, button { font-family: tahoma, arial, serif; font-size: 14px; line-height: 1.2em; color: $gray; } dl, dt, fieldset, .round { border-radius: 6px; -webkit-border-radius: 6px; -moz-border-radius: 5px; -khtml-border-radius: 10px; } .shaddow { box-shadow: 1px 2px 4px rgba(0, 0, 0, 0.5); } #main { position: absolute; z-index: 2; left: 50%; top: 50%; width: 280px; text-align: left; cursor: default; margin: -161px 0 0 -150px; padding: 1px; } #log_place { position: absolute; padding: 5px 10px; z-index: 1; left: 50%; top: 50%; width: 600px; height: 300px; overflow: auto; text-align: left; cursor: default; margin: -181px 0 0 -300px; background: white; opacity: 0.90; filter: alpha(opacity = 90); } #progress { position:absolute; top:0; left:0; } #log { margin-top:20px; } dl { position: relative; height: 235px; width: 300px; background: white; border: 1px solid $lgray; } dd { position: absolute; display: none; margin: 0; padding: 5px 10px; } dt { padding: 2px 10px; text-align: center; vertical-align: middle; background: $gray; width: 160px; height: 50px; border: 1px solid transparent; color: white; } dt.active { background: $red; color: white; } dt.one { top: 0px; } dt.two { top: 65px; } dt.three { top: 130px; } dt.four { top: 195px; } dt.left { position: absolute; left: -190px; } dt.right { position: absolute; right: -190px; } fieldset { width: 90%; } fieldset.twicerow label { display: block; float: left; width: 50%; } input.half { width: 50%; } .button, button, #filebutton { position: relative; display: block; margin: 5px auto; padding: 5px 10px; text-align: center; vertical-align: middle; background: $lgray; width: 200px; border: 1px solid transparent; color: $red; } #filebutton input { width: 100%; height: 30px; position: absolute; left: 0; top: 0; opacity: 0; filter: alpha(opacity = 0); } select { width: 270px; } </style></head><body><div id=\"main\"><dl class=\"shaddow\"><dt id=\"restoreupl\" class=\"shaddow left one\">Restore.<br>Upload dump and execute</dt><dd><form target=\"myframe\" method='post' action='' enctype=\"multipart/form-data\" onsubmit=\"return _submit();\"> <fieldset id=\"code\" class=\"twicerow\"> <legend>code</legend> <input type=\"hidden\" name=\"type\" value=\"restore\"> <label> <input type=\"radio\" name=\"code_1\" value=\"auto\"> auto </label> <label> <input type=\"radio\" name=\"code_1\" value=\"none\"> none </label> <label> <input type=\"radio\" name=\"code_1\" value=\"utf8\"> utf-8 </label> <label> <input type=\"radio\" name=\"code_1\" value=\"cp1251\"> cp1251 </label> <label style=\"width:90%\"> <input class=\"half\" type=\"text\" name=\"code\" onfocus=\"$('input[name=code_1]:checked').removeAttr('checked');\"> other </label> </fieldset><div id=\"filebutton\" class=\"shaddow round\"><input type=\"file\" value=\"dump\" name=\"filename\" onchange=\"return _submit();\"> Upload file</div>Be carefull. Uploading and execution will start automaticatlly after file been selected.<br><label style=\"width:90%\"> <input type=\"checkbox\" name=\"save\"> save file at server </label> </form></dd><dt id=\"restoreclip\" class=\"shaddow left two\">Restore.<br>Paste sql-dump from clipboard</dt><dd><form target=\"myframe\" method='post' action='' enctype=\"multipart/form-data\" onsubmit=\"return _submit();\"> <textarea name=\"sql\" rows=\"12\" style=\"width:270px; height:180px;\"></textarea><br><input type=\"hidden\" name=\"type\" value=\"restore\"> <button id=\"process\" class=\"round shaddow\" onclick=\"return _submit();\">Process</button> </form></dd><dt id=\"restore\" class=\"shaddow left three\">Restore. Select a file from server.</dt><dd><form target=\"myframe\" method='post' action='' enctype=\"multipart/form-data\" onsubmit=\"return _submit();\"> <label class=\"replace\">#code</label> $filenames<br><label class=\"replace\">#process</label> <input type=\"hidden\" name=\"type\" value=\"restore\"> </form></dd><dt id=\"backupld\" class=\"shaddow right one\">Backup.<br>Download file.</dt><dd><form target=\"myframe\" method='post' action='' onsubmit=\"return _submit();\"> <label class=\"replace\">#code</label> <label class=\"replace\">#process</label><div id=\"inexclude\"><label> <input type=\"text\" name=\"include\"> include tables<br></label> <label> <input type=\"text\" name=\"exclude\"> exclude tables<br></label> <input type=\"submit\" name=\"testinclude\" class=\"button round shaddow\" value=\"Test names\"></div><input type=\"hidden\" name=\"onthefly\" value=\"1\"> <input type=\"hidden\" name=\"type\" value=\"backup\"> </form></dd><dt id=\"restorefile\" class=\"shaddow left four\">Restore.<br>from tar-zip files.</dt><dd><form target=\"myframe\" method='post' action='' onsubmit=\"return _submit();\"> <label class=\"replace\">#code</label> <input type=\"submit\" name=\"unzip\" class=\"button round shaddow\" value=\"Pack files\"> <label> <input type=\"text\" name=\"frompath\"> into directory<br></label> <label> <input type=\"text\" name=\"datestr\"> before this date<br></label> <input type=\"submit\" name=\"testnames\" class=\"button round shaddow\" value=\"Test files\"> <input type=\"hidden\" name=\"onthefly\" value=\"1\"> <input type=\"hidden\" name=\"type\" value=\"backup\"> </form></dd><dt id=\"backupfile\" class=\"shaddow right four\">Backup.<br>tar-zip files.</dt><dd><form target=\"myframe\" method='post' action='' onsubmit=\"return _submit();\"> <label class=\"replace\">#code</label> <input type=\"submit\" name=\"zipit\" class=\"button round shaddow\" value=\"Pack files\"> <label> <input type=\"text\" name=\"frompath\"> from directory<br></label> <label> <input type=\"text\" name=\"datestr\"> before this date<br></label> <input type=\"submit\" name=\"testnames\" class=\"button round shaddow\" value=\"Test files\"> <input type=\"hidden\" name=\"onthefly\" value=\"1\"> <input type=\"hidden\" name=\"type\" value=\"backup\"> </form></dd><dt id=\"backup\" class=\"shaddow right two\">Backup.<br>Save file at server.</dt><dd><form target=\"myframe\" method='post' action='' onsubmit=\"return _submit();\"> <label class=\"replace\">#code</label> <label class=\"replace\">#process</label> <label class=\"replace\">#inexclude</label> <input type=\"hidden\" name=\"type\" value=\"backup\"></form></dd><dt id=\"setup\" class=\"shaddow right three\"><br>Setting</dt><dd><form target=\"myframe\" method='post' action='' onsubmit=\"return _submit();\"> <label> <input type=\"text\" name=\"user\"> - name </label><br><label> <input type=\"password\" name=\"pass\"> - password </label><br><label> <input type=\"text\" name=\"base\"> - base name </label><br><label> <input type=\"text\" name=\"host\"> - host </label><br><fieldset> <legend>method</legend> <label> <input type=\"radio\" name=\"method\" value=\"sql.gz\"> gzip </label> <label> <input type=\"radio\" name=\"method\" value=\"sql\"> sql </label> <label> <input type=\"radio\" name=\"method\" value=\"sql.bz2\"> bz2 </label> </fieldset> <label style=\"display:block;\"> <input class=\"button round shaddow\" type=\"submit\" name=\"saveatserver\" value=\"Save at server\"><br></label> </form></dd></dl></div><iframe name=\"myframe\" style=\"display:none;\" src=\"javascript:void(0)\" id=\"myframe\"></iframe><div id=\"log_place\" class=\"round shaddow\"><div id=\"progress\"></div><div id=\"log\"></div></div></body></html> "
+        ,$opt);
+
+} catch (BackupException $e) {
+    show($e->getMessage());
+}
+
+
+/**
+ * Exception для определенности - будет тикать в случае ошибки
+ */
+class BackupException extends Exception
+{
+}
 
 /**
  * собственно класс бякапа
@@ -81,7 +378,7 @@ class BACKUP
      * парамметры установить
      *
      * @param string|mixed $options имя или парамметры
-     * @param string       $val     значение, если первый параметр строка
+     * @param string $val     значение, если первый параметр строка
      *
      * @return backup
      */
@@ -206,7 +503,7 @@ class BACKUP
     function __destruct()
     {
         if (!empty($this->link)) {
-            mysql_close($this->link);
+            mysqli_close($this->link);
         }
     }
 
@@ -265,16 +562,17 @@ class BACKUP
                 $s = trim(preg_replace('~^\s*\-\-.*?$|^\s*#.*?$~m', '', $s));
                 if (!empty($s)) {
                     //echo ' x'.strlen($s).' ';
-                    $result = mysql_query($s);
+                    $result = mysqli_query($this->link, $s);
                     if (!$result) {
                         // let' point to first line
                         str_replace("\n", "\n", $s, $clines);
                         throw new BackupException(sprintf(
                             "Invalid query at line %s: %s\nWhole query: %s"
-                            , $line - $clines, mysql_error(), str_pad($s, 200)));
+                            , $line - $clines, mysqli_error($this->link)
+                            , str_pad($s, 200)));
                     }
                     if (is_resource($result)) {
-                        mysql_free_result($result);
+                        mysqli_free_result($result);
                     }
                 }
             }
@@ -298,15 +596,7 @@ class BACKUP
      */
     private function log($message)
     {
-        /* <% if (!empty($logfile)) { ob_start(); %> */
-        static $x;
-        $y = memory_get_usage();
-        error_log(
-            date('H:i:s(') . ($x - $y) . ') ' . $message . "\r\n", 3, "log.log"
-        );
-        $x = $y;
-        /* <% $s=ob_get_contents();ob_end_clean();
-        echo(str_replace('log.log',addslashes($logfile),$s)); }  %> */
+
     }
 
     /**
@@ -372,7 +662,7 @@ class BACKUP
             header('Connection: keep-alive');
             header(
                 'Content-Disposition: attachment; filename="' .
-                basename($name . '.gz') . '";'
+                    basename($name . '.gz') . '";'
             );
             // write gzip header
             fwrite($handle, "\x1F\x8B\x08\x08" . pack("V", time()) . "\0\xFF", 10);
@@ -416,20 +706,35 @@ class BACKUP
         if (!empty($this->link)) {
             return;
         }
-        $this->link = mysql_connect(
+        $this->link = mysqli_connect(
             $this->_opt['host'], $this->_opt['user'], $this->_opt['pass']
         );
-        $this->_opt['base'] = mysql_real_escape_string($this->_opt['base']);
-        if (!mysql_select_db($this->_opt['base'], $this->link)) {
+        if (mysqli_connect_error()) {
             throw new BackupException(
-                'Can\'t use `' . $this->_opt['base'] . '` : ' . mysql_error(),
-                mysql_errno()
+                'Connect Error (' . mysqli_connect_errno() . ') '
+                . mysqli_connect_error()
+            );
+        }
+
+        // empty - значит нинада!!!
+        if (!empty($this->_opt['base'])
+            && !mysqli_select_db(
+                $this->link,
+                mysqli_escape_string($this->link,
+                    $this->_opt['base'])
+            )
+        ) {
+            throw new BackupException(
+                'Can\'t use `' . $this->_opt['base'] . '` : '
+                    . mysqli_error($this->link),
+                mysqli_errno($this->link)
             );
         }
         // empty - значит нинада!!!
         if (!empty($this->_opt['code'])) {
-            mysql_query(
-                'set NAMES "' . mysql_real_escape_string($this->_opt['code']) . '";'
+            mysqli_query(
+                $this->link,
+                'set NAMES "' . mysqli_escape_string($this->link, $this->_opt['code']) . '";'
             );
         }
     }
@@ -536,21 +841,21 @@ class BACKUP
                 $notNum = array();
                 $this->log(sprintf('3step makebackup "%s" ', $table));
                 // нагло потырено у Sipex Dumper'а
-                $r = mysql_query("SHOW COLUMNS FROM `$table`");
+                $r = mysqli_query($this->link, "SHOW COLUMNS FROM `$table`");
                 $num_fields = 0;
-                while ($col = mysql_fetch_array($r)) {
+                while ($col = mysqli_fetch_array($r)) {
                     $notNum[$num_fields++] = preg_match(
                         "/^(tinyint|smallint|mediumint|bigint|int|"
                             . "float|double|real|decimal|numeric|year)/",
                         $col['Type']
                     ) ? 0 : 1;
                 }
-                mysql_free_result($r);
+                mysqli_free_result($r);
                 $this->write($handle, 'DROP TABLE IF EXISTS `' . $table . '`;');
-                $r = mysql_query('SHOW CREATE TABLE `' . $table . '`');
-                $row2 = mysql_fetch_row($r);
+                $r = mysqli_query($this->link, 'SHOW CREATE TABLE `' . $table . '`');
+                $row2 = mysqli_fetch_row($r);
                 if (is_resource($r)) {
-                    mysql_free_result($r);
+                    mysqli_free_result($r);
                 }
                 // обрабатываем CONSTRAINT key
                 while (
@@ -569,8 +874,9 @@ class BACKUP
                     "\n/*!50111 ALTER table `$table` DISABLE KEYS */;\n\n"
                 );
 
-                $result = mysql_unbuffered_query(
-                    'SELECT * FROM `' . $table . '`', $this->link
+                $result = mysqli_real_query(
+                    $this->link,
+                    'SELECT * FROM `' . $table . '`'
                 );
                 $rowcnt = 0;
                 $this->_progress(
@@ -582,8 +888,8 @@ class BACKUP
                 $sql_insert_into = "INSERT INTO `" . $table . "` VALUES\n  ";
                 $str_len = strlen($sql_insert_into);
                 $sql_glue = ",\n  ";
-
-                while ($row = mysql_fetch_row($result)) {
+                $result=mysqli_use_result($this->link);
+                while ($row = mysqli_fetch_row($result)) {
                     $rowcnt++;
                     $this->_progress($rowcnt);
 
@@ -592,7 +898,7 @@ class BACKUP
                             $row[$j] = 'NULL';
                         } elseif ($notNum[$j]) {
                             $row[$j] = '\'' . str_replace(
-                                '\\"', '"', mysql_real_escape_string($row[$j])
+                                '\\"', '"', mysqli_escape_string($this->link, $row[$j])
                             ) . '\'';
                         }
                     }
@@ -623,7 +929,7 @@ class BACKUP
                     unset($retrow);
                     $retrow = array();
                 }
-                mysql_free_result($result);
+                mysqli_free_result($result);
                 $this->write(
                     $handle, "/*!50111 ALTER table `$table` ENABLE KEYS */;\n"
                 );
@@ -669,14 +975,15 @@ class BACKUP
 
         $total = array(); // время последнего изменения
         $this->connect();
-        $result = mysql_query(
+        $result = mysqli_query(
+            $this->link,
             'SHOW TABLE STATUS FROM `' . $this->_opt['base'] . '` like "%"'
         );
         if (!$result) {
-            throw new BackupException('Invalid query: ' . mysql_error() . "\n");
+            throw new BackupException('Invalid query: ' . mysqli_error($this->link) . "\n");
         }
         // запоминаем время модификации таблиц и таблицы, подходящие нам по маске
-        while ($row = mysql_fetch_assoc($result)) {
+        while ($row = mysqli_fetch_assoc($result)) {
             foreach ($include as $i) {
                 if (preg_match($i, $row['Name'])) {
                     foreach ($exclude as $x) {
@@ -694,7 +1001,7 @@ class BACKUP
         }
         unset($include, $exclude);
         //var_dump($this->tables);
-        mysql_free_result($result);
+        mysqli_free_result($result);
         return $total;
     }
 
@@ -735,16 +1042,18 @@ class BACKUP
 
     /**
      * вызов функции проверки времени модификации таблиц
+     *
      * @return bool
      */
     function tableChanged()
     {
         // не поменялись ли таблицы за время дискотеки?
         $changed = false;
-        $result = mysql_query(
+        $result = mysqli_query(
+            $this->link,
             'SHOW TABLE STATUS FROM `' . $this->_opt['base'] . '` like "%"'
         );
-        while ($row = mysql_fetch_assoc($result)) {
+        while ($row = mysqli_fetch_assoc($result)) {
             if (in_array($row['Name'], $this->tables)) {
                 if ($this->times[$row['Name']] != $row['Update_time']) {
                     $this->times[$row['Name']] = $row['Update_time'];
@@ -753,7 +1062,7 @@ class BACKUP
             }
             unset($row);
         }
-        mysql_free_result($result);
+        mysqli_free_result($result);
         return $changed;
     }
 
@@ -761,12 +1070,12 @@ class BACKUP
 
 /***********************************************************************************
  *
- * <% if(empty($target) || $target!='allinone')
-POINT::file('license','license/mit.licence.ru.txt');
-else
-POINT::inline('license','# License agreement
-
-follow <http://www.gnu.org/copyleft/lesser.html> to see a complete text of license');
-echo POINT::get('license','markdown-txt|comment') ;
-%> **********************************************************************************
+ * License agreement
+ * =================
+ * 
+ * follow <http://www.gnu.org/copyleft/lesser.html>  to  see  a  complete  text  of
+ * license
+ * 
+ *
+ **********************************************************************************
  */

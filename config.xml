@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <config>
     <var name="executor" default="URI_executor"/>
+    <var name="driver" default=""/>
     <var name="license" default="License GNU/LGPL - Serge Koriakin - Jule 2010-2012, sergekoriakin@gmail.com"/>
     <var name="version">Backup-script. All about sql-dump for MySql databases</var>
 
@@ -11,7 +12,7 @@
         <file>src/$executor.php</file>
         <file>src/BackupException.php</file>
 
-        <file dstdir="$dst"  dir="src">backup.php</file>
+        <file dstdir="$dst" name="backup.php" dir="src">backup$driver.php</file>
 	</files>
 
 
